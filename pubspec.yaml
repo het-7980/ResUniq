@@ -1,0 +1,52 @@
+name: ResUniq
+description: A modern, minimalist, premium Resume Builder app (Flutter).
+publish_to: "none"
+version: 1.0.0+1
+
+environment:
+  sdk: ">=3.7.0 <4.0.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+  cupertino_icons: ^1.0.6
+
+  # State management
+  provider: ^6.1.2
+
+  # Local persistence used by the default LocalResumeRepository
+  shared_preferences: ^2.2.3
+
+  # PDF generation + cross-platform preview/share/download
+  pdf: ^3.11.1
+  printing: ^5.13.1
+
+  # Utilities
+  uuid: ^4.4.0
+  intl: ^0.19.0
+
+  # Firebase (ready for FirebaseResumeRepository -- run
+  # `flutterfire configure` in your project, then call
+  # Firebase.initializeApp() in main() before switching the repository
+  # provider from LocalResumeRepository to FirebaseResumeRepository).
+  firebase_core: ^4.13.0
+  firebase_auth: ^6.5.7
+  cloud_firestore: ^6.8.0
+  image_picker: ^1.1.2
+  http: ^1.2.2
+  google_sign_in: ^7.2.0
+
+  # Material Symbols Rounded icon set used throughout the UI.
+  # Add the font/package of your choice, e.g.:
+  # material_symbols_icons: ^4.2719.3
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^4.0.0
+
+flutter:
+  uses-material-design: true
+
+  assets:
+    - assets/

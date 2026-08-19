@@ -1,0 +1,45 @@
+# Flutter generated files
+.dart_tool/
+.packages
+.pub/
+build/
+
+# IDE settings
+.idea/
+.vscode/
+
+# Android generated/local files
+android/.gradle/
+android/local.properties
+
+# iOS generated files
+ios/Pods/
+ios/.symlinks/
+ios/Flutter/ephemeral/
+
+# macOS generated files
+macos/Pods/
+macos/Flutter/ephemeral/
+
+# Node.js
+node_modules/
+npm-debug.log*
+
+# Firebase/Admin secrets
+serviceAccountKey.json
+**/serviceAccountKey.json
+
+# Environment/secrets
+.env
+.env.*
+!.env.example
+
+# Generated APKs
+*.apk
+*.aab
+
+# Java heap dumps
+*.hprof
+
+# Gemini API key service
+dart_defines.json

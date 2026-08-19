@@ -1,0 +1,54 @@
+{
+  "project_info": {
+    "project_number": "1070058196039",
+    "project_id": "resuniq-ca89d",
+    "storage_bucket": "resuniq-ca89d.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:1070058196039:android:2f32694f30c377cac1b562",
+        "android_client_info": {
+          "package_name": "com.example.resume_claude_with_backend"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "1070058196039-gn8no3pe17bi3gqigmsd7faa2dt48ond.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.example.resume_claude_with_backend",
+            "certificate_hash": "690f1e40fcca1f611ae3f3f9848579eb23537b31"
+          }
+        },
+        {
+          "client_id": "1070058196039-k0756i0menm28vpacv1seicn4e0b6088.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAQcXft47MUHwolDw2V7hHxaNZ3tYV8Ka4"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "1070058196039-k0756i0menm28vpacv1seicn4e0b6088.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "1070058196039-s9nsikuj8jhbbj34dfcf79q3fkc0p744.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.example.resumeClaudeWithBackend"
+              }
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

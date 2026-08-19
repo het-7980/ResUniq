@@ -1,0 +1,50 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isAdmin() {
+      return isSignedIn()
+        && exists(/databases/$(database)/documents/users/$(request.auth.uid))
+        && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
+    }
+
+    match /users/{uid} {
+      allow read: if isSignedIn()
+        && (request.auth.uid == uid || isAdmin());
+
+      allow create: if isSignedIn()
+        && request.auth.uid == uid
+        && request.resource.data.role == 'user'
+        && request.resource.data.disabled == false;
+
+      allow update: if isSignedIn() && (
+        isAdmin()
+        || (
+          request.auth.uid == uid
+          && request.resource.data.role == resource.data.get('role', 'user')
+          && request.resource.data.disabled == resource.data.get('disabled', false)
+        )
+      );
+
+      allow delete: if isAdmin();
+    }
+
+    match /users_personal_details/{uid} {
+      allow read, write: if isSignedIn()
+        && (request.auth.uid == uid || isAdmin());
+    }
+
+    match /resumes/{resumeId} {
+      allow read, update, delete: if isSignedIn()
+        && (request.auth.uid == resource.data.ownerId || isAdmin());
+
+      allow create: if isSignedIn()
+        && request.auth.uid == request.resource.data.ownerId;
+    }
+  }
+}
