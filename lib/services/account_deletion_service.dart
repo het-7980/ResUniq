@@ -59,8 +59,11 @@ class AccountDeletionService {
   /// by obtaining a fresh Google credential and reauthenticating Firebase.
   Future<void> _reauthenticateWithGoogle(User user) async {
     if (kIsWeb) {
+      // FlutterFire's federated provider reauthentication method is not
+      // implemented on the web. For web, Firebase requires a popup (or
+      // redirect) flow to obtain a fresh Google credential.
       await _withTimeout(
-        user.reauthenticateWithProvider(GoogleAuthProvider()),
+        user.reauthenticateWithPopup(GoogleAuthProvider()),
         'Google verification',
       );
       return;
