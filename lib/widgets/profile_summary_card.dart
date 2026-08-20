@@ -16,6 +16,8 @@
 /// ---------------------------------------------------------------------------
 library;
 
+import 'dart:typed_data';
+
 import 'package:flutter/material.dart';
 import '../theme/app_theme.dart';
 
@@ -26,6 +28,9 @@ class ProfileSummaryCard extends StatelessWidget {
   final String name;
   final String email;
   final String profession;
+  /// Decoded bytes of the user's uploaded profile photo.
+  /// When null, the card displays the default person icon.
+  final Uint8List? profileImageBytes;
   final int resumeCount;
   final double completion; // 0.0 - 1.0
   final VoidCallback onEditProfile;
@@ -35,6 +40,7 @@ class ProfileSummaryCard extends StatelessWidget {
     required this.name,
     required this.email,
     required this.profession,
+    this.profileImageBytes,
     required this.resumeCount,
     required this.completion,
     required this.onEditProfile,
@@ -55,10 +61,19 @@ class ProfileSummaryCard extends StatelessWidget {
         children: [
           Row(
             children: [
-              const CircleAvatar(
+              CircleAvatar(
                 radius: 30,
                 backgroundColor: Colors.white24,
-                child: Icon(Icons.person_rounded, color: Colors.white, size: 30),
+                backgroundImage: profileImageBytes != null
+                    ? MemoryImage(profileImageBytes!)
+                    : null,
+                child: profileImageBytes == null
+                    ? const Icon(
+                        Icons.person_rounded,
+                        color: Colors.white,
+                        size: 30,
+                      )
+                    : null,
               ),
               const SizedBox(width: 16),
               Expanded(

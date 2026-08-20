@@ -364,46 +364,40 @@ class _HomeDashboard extends StatelessWidget {
                   ],
                 ),
               ),
-              FutureBuilder<Map<String, dynamic>?>(
-                future: FirebaseAuth.instance.currentUser == null
-                    ? Future.value(null)
-                    : PersonalDetailsService().getDetails(
-                        FirebaseAuth.instance.currentUser!.uid,
-                      ),
-                builder: (context, snapshot) {
-                  final imageValue =
-                      snapshot.data?['profileImageUrl']?.toString() ?? '';
-                  final imageBytes =
-                      ProfilePictureService.decode(imageValue);
-
-                  return CircleAvatar(
-                    radius: 20,
-                    backgroundColor: AppColors.primaryTint,
-                    backgroundImage:
-                        imageBytes != null ? MemoryImage(imageBytes) : null,
-                    child: imageBytes == null
-                        ? const Icon(
-                            Icons.person_rounded,
-                            color: AppColors.primary,
-                          )
-                        : null,
-                  );
-                },
-              ),
             ],
           ),
           const SizedBox(height: 24),
 
-          // Profile summary card
-          ProfileSummaryCard(
-            name: displayName,
-            email: profile?.email ?? '',
-            profession: '',
-            resumeCount: resumes.length,
-            completion: listProvider.averageCompletion,
-            onEditProfile: () {
-              Navigator.of(context).push(
-                MaterialPageRoute(builder: (_) => const EditProfileScreen()),
+          // Profile summary card.
+          //
+          // The profile photo is stored in the personal-details document as a
+          // compressed base64 data URL. Load it here and pass the decoded bytes
+          // to the reusable card so the actual uploaded photo is displayed.
+          FutureBuilder<Map<String, dynamic>?>(
+            future: FirebaseAuth.instance.currentUser == null
+                ? Future.value(null)
+                : PersonalDetailsService().getDetails(
+                    FirebaseAuth.instance.currentUser!.uid,
+                  ),
+            builder: (context, snapshot) {
+              final imageValue =
+                  snapshot.data?['profileImageUrl']?.toString() ?? '';
+              final imageBytes = ProfilePictureService.decode(imageValue);
+
+              return ProfileSummaryCard(
+                name: displayName,
+                email: profile?.email ?? '',
+                profession: '',
+                profileImageBytes: imageBytes,
+                resumeCount: resumes.length,
+                completion: listProvider.averageCompletion,
+                onEditProfile: () {
+                  Navigator.of(context).push(
+                    MaterialPageRoute(
+                      builder: (_) => const EditProfileScreen(),
+                    ),
+                  );
+                },
               );
             },
           ),

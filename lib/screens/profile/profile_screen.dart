@@ -107,7 +107,7 @@ class ProfileScreen extends StatelessWidget {
 
       passwordController.dispose();
 
-      if (password == null || password!.isEmpty || !context.mounted) {
+      if (password == null || password.isEmpty || !context.mounted) {
         return;
       }
     } else if (isGoogleUser) {
