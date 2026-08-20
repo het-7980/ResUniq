@@ -223,7 +223,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
       await closeProgressDialog();
       disposeProgress();
 
-      if (mounted) {
+      if (context.mounted) {
         final message = switch (e.code) {
           'wrong-password' || 'invalid-credential' =>
             isGoogleUser
@@ -252,7 +252,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
       await closeProgressDialog();
       disposeProgress();
 
-      if (mounted) {
+      if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Unable to delete account: $e')),
         );
