@@ -31,10 +31,21 @@ import '../../theme/app_theme.dart';
 
 /// ProfileScreen is responsible for this part of the ResUniq application.
 /// It is kept separate so other files can reuse it without duplicating logic.
-class ProfileScreen extends StatelessWidget {
+class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
 
+  @override
+  State<ProfileScreen> createState() => _ProfileScreenState();
+}
+
+class _ProfileScreenState extends State<ProfileScreen> {
+  bool _isDeleting = false;
+
   Future<void> _deleteAccount(BuildContext context) async {
+    // Prevent double taps from opening multiple delete/progress dialogs.
+    if (_isDeleting) return;
+    setState(() => _isDeleting = true);
+
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (dialogContext) => AlertDialog(
@@ -60,10 +71,16 @@ class ProfileScreen extends StatelessWidget {
       ),
     );
 
-    if (confirmed != true || !context.mounted) return;
+    if (confirmed != true || !context.mounted) {
+      if (mounted) setState(() => _isDeleting = false);
+      return;
+    }
 
     final user = FirebaseAuth.instance.currentUser;
-    if (user == null || !context.mounted) return;
+    if (user == null || !context.mounted) {
+      if (mounted) setState(() => _isDeleting = false);
+      return;
+    }
 
     final providers = user.providerData.map((info) => info.providerId).toSet();
     final isGoogleUser = providers.contains('google.com');
@@ -108,6 +125,7 @@ class ProfileScreen extends StatelessWidget {
       passwordController.dispose();
 
       if (password == null || password.isEmpty || !context.mounted) {
+        if (mounted) setState(() => _isDeleting = false);
         return;
       }
     } else if (isGoogleUser) {
@@ -122,100 +140,128 @@ class ProfileScreen extends StatelessWidget {
           ),
         ),
       );
+      if (mounted) setState(() => _isDeleting = false);
       return;
     }
 
     final progress = ValueNotifier<String>('Starting...');
+    var progressDialogOpen = false;
+    var progressDisposed = false;
 
+    // Show exactly one progress dialog. The deletion guard above prevents
+    // repeated taps from stacking identical dialogs.
     showDialog<void>(
       context: context,
       useRootNavigator: true,
       barrierDismissible: false,
-      builder: (_) => PopScope(
-        canPop: false,
-        child: AlertDialog(
-          content: ValueListenableBuilder<String>(
-            valueListenable: progress,
-            builder: (_, message, __) => Row(
-              children: [
-                const SizedBox(
-                  width: 24,
-                  height: 24,
-                  child: CircularProgressIndicator(strokeWidth: 2.5),
-                ),
-                const SizedBox(width: 18),
-                Expanded(child: Text(message)),
-              ],
+      builder: (_) {
+        progressDialogOpen = true;
+        return PopScope(
+          canPop: false,
+          child: AlertDialog(
+            content: ValueListenableBuilder<String>(
+              valueListenable: progress,
+              builder: (_, message, __) => Row(
+                children: [
+                  const SizedBox(
+                    width: 24,
+                    height: 24,
+                    child: CircularProgressIndicator(strokeWidth: 2.5),
+                  ),
+                  const SizedBox(width: 18),
+                  Expanded(child: Text(message)),
+                ],
+              ),
             ),
           ),
-        ),
-      ),
+        );
+      },
     );
 
-    var progressDialogOpen = true;
+    // Allow the dialog route to finish being inserted before the async
+    // deletion starts. This avoids a late dialog appearing after a very fast
+    // operation has already completed.
+    await Future<void>.delayed(Duration.zero);
 
     Future<void> closeProgressDialog() async {
       if (!progressDialogOpen) return;
       progressDialogOpen = false;
 
-      if (context.mounted) {
-        Navigator.of(context, rootNavigator: true).pop();
+      final navigator = Navigator.of(context, rootNavigator: true);
+      if (navigator.canPop()) {
+        navigator.pop();
       }
+      // Give Flutter one frame to remove the dialog route before navigation.
+      await Future<void>.delayed(Duration.zero);
+    }
+
+    void disposeProgress() {
+      if (progressDisposed) return;
+      progressDisposed = true;
+      progress.dispose();
     }
 
     try {
       await AccountDeletionService().deleteAccount(
         password: password,
-        onProgress: (message) => progress.value = message,
+        onProgress: (message) {
+          if (!progressDisposed) progress.value = message;
+        },
       );
 
       await closeProgressDialog();
-      progress.dispose();
+      disposeProgress();
 
-      if (!context.mounted) return;
+      if (!mounted) return;
 
-      Navigator.of(context, rootNavigator: true).pushAndRemoveUntil(
-        MaterialPageRoute(builder: (_) => const AuthUser()),
-        (_) => false,
-      );
+      // Do not push another authentication screen here. CheckAuth already
+      // listens to FirebaseAuth.authStateChanges(), so once user.delete()
+      // completes it automatically shows AuthUser. Pushing manually at the
+      // same time can race with the auth-state rebuild and leave duplicate
+      // dialog/routes on the navigator stack.
     } on FirebaseAuthException catch (e) {
       await closeProgressDialog();
-      progress.dispose();
+      disposeProgress();
 
-      if (!context.mounted) return;
+      if (mounted) {
+        final message = switch (e.code) {
+          'wrong-password' || 'invalid-credential' =>
+            isGoogleUser
+                ? 'Google verification failed. Please try again.'
+                : 'The password is incorrect.',
+          'too-many-requests' =>
+            'Too many attempts. Please try again later.',
+          'network-request-failed' =>
+            'Network error. Check your internet connection.',
+          'canceled' =>
+            'Google verification was cancelled.',
+          'google-reauthentication-failed' =>
+            'Unable to verify your Google account. Please try again.',
+          'requires-recent-login' =>
+            isGoogleUser
+                ? 'Google verification is required. Please try again.'
+                : 'Please enter your password again to verify your account.',
+          _ => e.message ?? 'Unable to delete the account.',
+        };
 
-      final message = switch (e.code) {
-        'wrong-password' || 'invalid-credential' =>
-          isGoogleUser
-              ? 'Google verification failed. Please try again.'
-              : 'The password is incorrect.',
-        'too-many-requests' =>
-          'Too many attempts. Please try again later.',
-        'network-request-failed' =>
-          'Network error. Check your internet connection.',
-        'canceled' =>
-          'Google verification was cancelled.',
-        'google-reauthentication-failed' =>
-          'Unable to verify your Google account. Please try again.',
-        'requires-recent-login' =>
-          isGoogleUser
-              ? 'Google verification is required. Please try again.'
-              : 'Please enter your password again to verify your account.',
-        _ => e.message ?? 'Unable to delete the account.',
-      };
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(message)),
-      );
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(message)),
+        );
+      }
     } catch (e) {
       await closeProgressDialog();
-      progress.dispose();
+      disposeProgress();
 
-      if (!context.mounted) return;
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Unable to delete account: $e')),
-      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Unable to delete account: $e')),
+        );
+      }
+    } finally {
+      disposeProgress();
+      if (mounted) {
+        setState(() => _isDeleting = false);
+      }
     }
   }
 
@@ -683,10 +729,12 @@ class ProfileScreen extends StatelessWidget {
                       ),
                       const SizedBox(height: 4),
                       TextButton(
-                        onPressed: () => _deleteAccount(context),
-                        child: const Text(
-                          'Delete Account',
-                          style: TextStyle(color: AppColors.error),
+                        onPressed: _isDeleting
+                            ? null
+                            : () => _deleteAccount(context),
+                        child: Text(
+                          _isDeleting ? 'Deleting Account...' : 'Delete Account',
+                          style: const TextStyle(color: AppColors.error),
                         ),
                       ),
                     ],

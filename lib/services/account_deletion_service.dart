@@ -213,6 +213,8 @@ class AccountDeletionService {
       'Deleting Firebase Authentication account',
     );
 
-    await _auth.signOut();
+    // user.delete() invalidates the current Firebase Authentication session.
+    // CheckAuth listens to authStateChanges() and will automatically show the
+    // sign-in screen, so an additional signOut() is unnecessary.
   }
 }
