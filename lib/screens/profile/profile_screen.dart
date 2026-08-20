@@ -62,42 +62,68 @@ class ProfileScreen extends StatelessWidget {
 
     if (confirmed != true || !context.mounted) return;
 
-    final passwordController = TextEditingController();
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null || !context.mounted) return;
 
-    final password = await showDialog<String>(
-      context: context,
-      builder: (dialogContext) => AlertDialog(
-        title: const Text('Confirm your password'),
-        content: TextField(
-          controller: passwordController,
-          obscureText: true,
-          autofocus: true,
-          decoration: const InputDecoration(
-            labelText: 'Password',
-            prefixIcon: Icon(Icons.lock_outline_rounded),
+    final providers = user.providerData.map((info) => info.providerId).toSet();
+    final isGoogleUser = providers.contains('google.com');
+    final isPasswordUser = providers.contains('password');
+
+    String? password;
+
+    if (isPasswordUser) {
+      final passwordController = TextEditingController();
+
+      password = await showDialog<String>(
+        context: context,
+        builder: (dialogContext) => AlertDialog(
+          title: const Text('Confirm your password'),
+          content: TextField(
+            controller: passwordController,
+            obscureText: true,
+            autofocus: true,
+            decoration: const InputDecoration(
+              labelText: 'Password',
+              prefixIcon: Icon(Icons.lock_outline_rounded),
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext),
+              child: const Text('Cancel'),
+            ),
+            FilledButton(
+              onPressed: () {
+                final value = passwordController.text.trim();
+                if (value.isNotEmpty) {
+                  Navigator.pop(dialogContext, value);
+                }
+              },
+              child: const Text('Continue'),
+            ),
+          ],
+        ),
+      );
+
+      passwordController.dispose();
+
+      if (password == null || password!.isEmpty || !context.mounted) {
+        return;
+      }
+    } else if (isGoogleUser) {
+      // Google users do not have an app password. The deletion service will
+      // reauthenticate them with a fresh Google credential instead.
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'This account uses an unsupported sign-in method. '
+            'Please sign in again before deleting it.',
           ),
         ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(dialogContext),
-            child: const Text('Cancel'),
-          ),
-          FilledButton(
-            onPressed: () {
-              final value = passwordController.text.trim();
-              if (value.isNotEmpty) {
-                Navigator.pop(dialogContext, value);
-              }
-            },
-            child: const Text('Continue'),
-          ),
-        ],
-      ),
-    );
-
-    passwordController.dispose();
-
-    if (password == null || password.isEmpty || !context.mounted) return;
+      );
+      return;
+    }
 
     final progress = ValueNotifier<String>('Starting...');
 
@@ -160,13 +186,21 @@ class ProfileScreen extends StatelessWidget {
 
       final message = switch (e.code) {
         'wrong-password' || 'invalid-credential' =>
-          'The password is incorrect.',
+          isGoogleUser
+              ? 'Google verification failed. Please try again.'
+              : 'The password is incorrect.',
         'too-many-requests' =>
           'Too many attempts. Please try again later.',
         'network-request-failed' =>
           'Network error. Check your internet connection.',
+        'canceled' =>
+          'Google verification was cancelled.',
+        'google-reauthentication-failed' =>
+          'Unable to verify your Google account. Please try again.',
         'requires-recent-login' =>
-          'Please sign in again and then delete your account.',
+          isGoogleUser
+              ? 'Google verification is required. Please try again.'
+              : 'Please enter your password again to verify your account.',
         _ => e.message ?? 'Unable to delete the account.',
       };
 

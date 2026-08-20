@@ -18,6 +18,8 @@ library;
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter/foundation.dart';
+import 'package:google_sign_in/google_sign_in.dart';
 
 
 typedef AccountDeletionProgress = void Function(String message);
@@ -33,6 +35,8 @@ class AccountDeletionService {
 
   final FirebaseAuth _auth;
   final FirebaseFirestore _db;
+  final GoogleSignIn _googleSignIn = GoogleSignIn.instance;
+  bool _googleInitialized = false;
 
   static const _operationTimeout = Duration(seconds: 25);
   static const _batchLimit = 450;
@@ -49,8 +53,71 @@ class AccountDeletionService {
     );
   }
 
+  /// Reauthenticates the currently signed-in user with Google.
+  ///
+  /// A Google account has no application password, so deletion is confirmed
+  /// by obtaining a fresh Google credential and reauthenticating Firebase.
+  Future<void> _reauthenticateWithGoogle(User user) async {
+    if (kIsWeb) {
+      await _withTimeout(
+        user.reauthenticateWithProvider(GoogleAuthProvider()),
+        'Google verification',
+      );
+      return;
+    }
+
+    if (!_googleInitialized) {
+      await _withTimeout(
+        _googleSignIn.initialize(),
+        'Google initialization',
+      );
+      _googleInitialized = true;
+    }
+
+    if (!_googleSignIn.supportsAuthenticate()) {
+      throw FirebaseAuthException(
+        code: 'google-sign-in-not-supported',
+        message: 'Google reauthentication is not supported on this platform.',
+      );
+    }
+
+    late final GoogleSignInAccount googleUser;
+    try {
+      googleUser = await _withTimeout(
+        _googleSignIn.authenticate(),
+        'Google verification',
+      );
+    } on GoogleSignInException catch (e) {
+      if (e.code == GoogleSignInExceptionCode.canceled) {
+        throw FirebaseAuthException(
+          code: 'canceled',
+          message: 'Google verification was cancelled.',
+        );
+      }
+      throw FirebaseAuthException(
+        code: 'google-reauthentication-failed',
+        message: e.description ?? 'Unable to verify your Google account.',
+      );
+    }
+
+    final idToken = googleUser.authentication.idToken;
+    if (idToken == null || idToken.isEmpty) {
+      throw FirebaseAuthException(
+        code: 'missing-google-id-token',
+        message: 'Google verification did not return an ID token.',
+      );
+    }
+
+    final credential = GoogleAuthProvider.credential(idToken: idToken);
+
+    await _withTimeout(
+      user.reauthenticateWithCredential(credential),
+      'Google verification',
+    );
+  }
+
   Future<void> deleteAccount({
-    required String password,
+    String? password,
     AccountDeletionProgress? onProgress,
   }) async {
     final user = _auth.currentUser;
@@ -59,22 +126,42 @@ class AccountDeletionService {
       throw StateError('No user is currently signed in.');
     }
 
-    final email = user.email;
-    if (email == null || email.isEmpty) {
-      throw StateError('This account does not use email/password sign-in.');
+    final providers = user.providerData.map((info) => info.providerId).toSet();
+    final isGoogleUser = providers.contains('google.com');
+    final isPasswordUser = providers.contains('password');
+
+    // Firebase requires recent authentication before deleting an account.
+    // Email/password users are verified with their password, while Google
+    // users are verified with a fresh Google authentication instead.
+    if (isPasswordUser) {
+      final email = user.email;
+      if (email == null || email.isEmpty) {
+        throw StateError('This account does not have a valid email address.');
+      }
+      if (password == null || password.isEmpty) {
+        throw StateError('A password is required for this account.');
+      }
+
+      onProgress?.call('Verifying your password...');
+
+      final credential = EmailAuthProvider.credential(
+        email: email,
+        password: password,
+      );
+
+      await _withTimeout(
+        user.reauthenticateWithCredential(credential),
+        'Password verification',
+      );
+    } else if (isGoogleUser) {
+      onProgress?.call('Verifying your Google account...');
+      await _reauthenticateWithGoogle(user);
+    } else {
+      throw StateError(
+        'This account uses an unsupported sign-in provider. '
+        'Please sign in again before deleting it.',
+      );
     }
-
-    onProgress?.call('Verifying your password...');
-
-    final credential = EmailAuthProvider.credential(
-      email: email,
-      password: password,
-    );
-
-    await _withTimeout(
-      user.reauthenticateWithCredential(credential),
-      'Password verification',
-    );
 
     final uid = user.uid;
 
