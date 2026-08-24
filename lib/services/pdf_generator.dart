@@ -324,6 +324,7 @@ class PdfGenerator {
       'languages',
       'interests',
       'references',
+      'customFields',
     ];
 
     final result = <String>[];
@@ -436,6 +437,21 @@ class PdfGenerator {
                       ))
                   .toList(),
             );
+          }
+          break;
+        case 'customFields':
+          if (resume.customFields.isNotEmpty) {
+            // Render each user-defined field as its own resume section.
+            // The field title is controlled by the user, while the template
+            // still controls typography, spacing, and section styling.
+            for (final field in resume.customFields) {
+              final label = field.label.trim();
+              final value = field.value.trim();
+              if (label.isEmpty || value.isEmpty) continue;
+              widgets.add(_sectionTitle(label, template, accent, secondary));
+              widgets.add(_bodyText(value, text, template));
+              widgets.add(pw.SizedBox(height: template.sectionSpacing));
+            }
           }
           break;
       }

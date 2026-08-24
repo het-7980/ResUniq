@@ -101,6 +101,11 @@ const _sections = [
     Icons.people_outline_rounded,
     'People who can vouch for you.',
   ),
+  _StepSection(
+    'Custom Fields',
+    Icons.add_box_outlined,
+    'Add your own resume sections, such as Awards or Publications.',
+  ),
 ];
 
 /// _WizardBody is responsible for this part of the ResUniq application.
@@ -217,6 +222,16 @@ class _WizardBodyState extends State<_WizardBody> {
     if (_step == 7 && resume.interests.isEmpty) {
       _showSectionError('Please add at least one interest.');
       return false;
+    }
+    if (_step == 9) {
+      for (final field in resume.customFields) {
+        if (field.label.trim().isEmpty || field.value.trim().isEmpty) {
+          _showSectionError(
+            'Please complete or remove every custom field before continuing.',
+          );
+          return false;
+        }
+      }
     }
     return true;
   }
@@ -905,6 +920,55 @@ class _StepForm extends StatelessWidget {
             AddEntryButton(
               label: 'Add Reference',
               onPressed: form.addReference,
+            ),
+          ],
+        );
+
+      case 9: // Custom Fields
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            if (draft.customFields.isEmpty)
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: AppColors.primaryTint,
+                  borderRadius: BorderRadius.circular(AppRadius.md),
+                ),
+                child: const Text(
+                  'Add any extra section you want on your resume. '
+                  'Examples: Awards, Publications, Volunteer Work, Achievements.',
+                ),
+              ),
+            for (final field in draft.customFields)
+              EntryCard(
+                onRemove: () => form.removeCustomField(field.id),
+                children: [
+                  LabeledField(
+                    label: 'Field Title',
+                    initialValue: field.label,
+                    requiredField: true,
+                    onChanged: (v) => form.updateCustomField(
+                      field.id,
+                      (x) => x.copyWith(label: v.trim()),
+                    ),
+                  ),
+                  LabeledField(
+                    label: 'Content',
+                    initialValue: field.value,
+                    requiredField: true,
+                    maxLines: 5,
+                    onChanged: (v) => form.updateCustomField(
+                      field.id,
+                      (x) => x.copyWith(value: v.trim()),
+                    ),
+                  ),
+                ],
+              ),
+            AddEntryButton(
+              label: 'Add Custom Field',
+              onPressed: form.addCustomField,
             ),
           ],
         );

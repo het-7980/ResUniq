@@ -42,6 +42,7 @@ class EditResumeScreen extends StatelessWidget {
     ('Languages', _hasLanguages),
     ('Interests', _hasInterests),
     ('References', _hasReferences),
+    ('Custom Fields', _hasCustomFields),
   ];
 
   static bool _hasPersonal(ResumeDocument r) => !r.personal.isEmpty;
@@ -54,6 +55,7 @@ class EditResumeScreen extends StatelessWidget {
   static bool _hasLanguages(ResumeDocument r) => r.languages.isNotEmpty;
   static bool _hasInterests(ResumeDocument r) => r.interests.isNotEmpty;
   static bool _hasReferences(ResumeDocument r) => r.references.isNotEmpty;
+  static bool _hasCustomFields(ResumeDocument r) => r.customFields.isNotEmpty;
 
   void _openWizard(BuildContext context, int step) {
     Navigator.of(context).push(

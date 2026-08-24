@@ -109,6 +109,35 @@ class ResumeFormProvider extends ChangeNotifier {
   void removeReference(String id) => _update((d) =>
       d.copyWith(references: d.references.where((e) => e.id != id).toList()));
 
+  // ---- Custom fields ------------------------------------------------------
+  // Custom fields let users add resume sections that are not built into the
+  // standard form, such as Awards, Publications, Volunteer Work, or Achievements.
+
+  void addCustomField() => _update(
+        (d) => d.copyWith(
+          customFields: [...d.customFields, CustomFieldEntry()],
+        ),
+      );
+
+  void updateCustomField(
+    String id,
+    CustomFieldEntry Function(CustomFieldEntry) updater,
+  ) =>
+      _update(
+        (d) => d.copyWith(
+          customFields: d.customFields
+              .map((field) => field.id == id ? updater(field) : field)
+              .toList(),
+        ),
+      );
+
+  void removeCustomField(String id) => _update(
+        (d) => d.copyWith(
+          customFields:
+              d.customFields.where((field) => field.id != id).toList(),
+        ),
+      );
+
   // ---- Simple tag/chip sections (skills, languages, interests) ----------
 
   void addSkill(String value) {
