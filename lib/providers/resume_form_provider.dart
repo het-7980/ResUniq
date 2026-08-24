@@ -52,6 +52,29 @@ class ResumeFormProvider extends ChangeNotifier {
   void setObjective(String value) =>
       _update((d) => d.copyWith(objective: value));
 
+  /// Updates a value created by the administrator in the dynamic field manager.
+  void setCustomField(String fieldId, String value, {String? label}) =>
+      _update((d) {
+        final values = Map<String, String>.from(d.customFields);
+        final labels = Map<String, String>.from(d.customFieldLabels);
+        values[fieldId] = value;
+        if (label != null && label.trim().isNotEmpty) {
+          labels[fieldId] = label.trim();
+        }
+        return d.copyWith(
+          customFields: values,
+          customFieldLabels: labels,
+        );
+      });
+
+  /// Keeps saved custom-field labels synchronized with the current admin
+  /// configuration, even when the user did not edit the field value.
+  void syncCustomFieldLabels(Map<String, String> labels) => _update((d) {
+        final merged = Map<String, String>.from(d.customFieldLabels)
+          ..addAll(labels);
+        return d.copyWith(customFieldLabels: merged);
+      });
+
   // ---- Generic list section helpers --------------------------------------
 
   void addEducation() => _update(
@@ -108,35 +131,6 @@ class ResumeFormProvider extends ChangeNotifier {
 
   void removeReference(String id) => _update((d) =>
       d.copyWith(references: d.references.where((e) => e.id != id).toList()));
-
-  // ---- Custom fields ------------------------------------------------------
-  // Custom fields let users add resume sections that are not built into the
-  // standard form, such as Awards, Publications, Volunteer Work, or Achievements.
-
-  void addCustomField() => _update(
-        (d) => d.copyWith(
-          customFields: [...d.customFields, CustomFieldEntry()],
-        ),
-      );
-
-  void updateCustomField(
-    String id,
-    CustomFieldEntry Function(CustomFieldEntry) updater,
-  ) =>
-      _update(
-        (d) => d.copyWith(
-          customFields: d.customFields
-              .map((field) => field.id == id ? updater(field) : field)
-              .toList(),
-        ),
-      );
-
-  void removeCustomField(String id) => _update(
-        (d) => d.copyWith(
-          customFields:
-              d.customFields.where((field) => field.id != id).toList(),
-        ),
-      );
 
   // ---- Simple tag/chip sections (skills, languages, interests) ----------
 

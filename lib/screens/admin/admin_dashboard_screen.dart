@@ -27,6 +27,7 @@ import '../../theme/app_theme.dart';
 import '../../widgets/app_animations.dart';
 import '../auth/auth_user_screen.dart';
 import 'admin_resumes_screen.dart';
+import 'admin_form_fields_screen.dart';
 import 'admin_users_screen.dart';
 import 'admin_templates_screen.dart';
 
@@ -258,6 +259,20 @@ class _AdminDashboardBody extends StatelessWidget {
                       Navigator.of(context).push(
                         MaterialPageRoute(
                           builder: (_) => const AdminTemplatesScreen(),
+                        ),
+                      );
+                    },
+                  ),
+                  const SizedBox(height: 12),
+                  _ManagementTile(
+                    icon: Icons.tune_rounded,
+                    title: 'Manage Form Fields',
+                    subtitle:
+                        'Add, edit, enable, disable, and reorder resume form fields',
+                    onTap: () {
+                      Navigator.of(context).push(
+                        MaterialPageRoute(
+                          builder: (_) => const AdminFormFieldsScreen(),
                         ),
                       );
                     },

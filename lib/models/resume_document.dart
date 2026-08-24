@@ -240,47 +240,6 @@ class CertificationEntry {
       );
 }
 
-/// CustomFieldEntry represents a user-defined resume section.
-///
-/// The user can choose any title (for example, "Awards", "Publications",
-/// "Volunteer Work", or "Achievements") and enter the content they want
-/// displayed in that section. It is intentionally generic so users are not
-/// limited to the predefined resume sections.
-class CustomFieldEntry {
-  final String id;
-  final String label;
-  final String value;
-
-  CustomFieldEntry({
-    String? id,
-    this.label = '',
-    this.value = '',
-  }) : id = id ?? _uuid.v4();
-
-  CustomFieldEntry copyWith({
-    String? label,
-    String? value,
-  }) =>
-      CustomFieldEntry(
-        id: id,
-        label: label ?? this.label,
-        value: value ?? this.value,
-      );
-
-  Map<String, dynamic> toMap() => {
-        'id': id,
-        'label': label,
-        'value': value,
-      };
-
-  factory CustomFieldEntry.fromMap(Map<String, dynamic> map) =>
-      CustomFieldEntry(
-        id: map['id'],
-        label: map['label']?.toString() ?? '',
-        value: map['value']?.toString() ?? '',
-      );
-}
-
 /// ReferenceEntry is responsible for this part of the ResUniq application.
 /// It is kept separate so other files can reuse it without duplicating logic.
 class ReferenceEntry {
@@ -345,8 +304,9 @@ class ResumeDocument {
   final List<String> languages;
   final List<String> interests;
   final List<ReferenceEntry> references;
-  /// User-defined sections such as Awards, Publications, Volunteer Work, etc.
-  final List<CustomFieldEntry> customFields;
+  /// Values for administrator-created fields. Keys are FormFieldDefinition ids.
+  final Map<String, String> customFields;
+  final Map<String, String> customFieldLabels;
   final DateTime createdAt;
   final DateTime updatedAt;
 
@@ -365,7 +325,8 @@ class ResumeDocument {
     List<String>? languages,
     List<String>? interests,
     List<ReferenceEntry>? references,
-    List<CustomFieldEntry>? customFields,
+    Map<String, String>? customFields,
+    Map<String, String>? customFieldLabels,
     DateTime? createdAt,
     DateTime? updatedAt,
   })  : id = id ?? _uuid.v4(),
@@ -377,7 +338,8 @@ class ResumeDocument {
         languages = languages ?? [],
         interests = interests ?? [],
         references = references ?? [],
-        customFields = customFields ?? [],
+        customFields = customFields ?? {},
+        customFieldLabels = customFieldLabels ?? {},
         createdAt = createdAt ?? DateTime.now(),
         updatedAt = updatedAt ?? DateTime.now();
 
@@ -393,7 +355,6 @@ class ResumeDocument {
       languages.isNotEmpty,
       interests.isNotEmpty,
       references.isNotEmpty,
-      customFields.isNotEmpty,
     ];
     final done = checks.where((c) => c).length;
     return done / checks.length;
@@ -418,7 +379,8 @@ class ResumeDocument {
     List<String>? languages,
     List<String>? interests,
     List<ReferenceEntry>? references,
-    List<CustomFieldEntry>? customFields,
+    Map<String, String>? customFields,
+    Map<String, String>? customFieldLabels,
     DateTime? updatedAt,
     String? ownerId,
   }) {
@@ -438,6 +400,7 @@ class ResumeDocument {
       interests: interests ?? this.interests,
       references: references ?? this.references,
       customFields: customFields ?? this.customFields,
+      customFieldLabels: customFieldLabels ?? this.customFieldLabels,
       createdAt: createdAt,
       updatedAt: updatedAt ?? DateTime.now(),
     );
@@ -463,7 +426,8 @@ class ResumeDocument {
         'languages': languages,
         'interests': interests,
         'references': references.map((e) => e.toMap()).toList(),
-        'customFields': customFields.map((e) => e.toMap()).toList(),
+        'customFields': customFields,
+        'customFieldLabels': customFieldLabels,
         'createdAt': createdAt.toIso8601String(),
         'updatedAt': updatedAt.toIso8601String(),
       };
@@ -528,7 +492,18 @@ class ResumeDocument {
       languages: List<String>.from(map['languages'] ?? const []),
       interests: List<String>.from(map['interests'] ?? const []),
       references: listOf('references', ReferenceEntry.fromMap),
-      customFields: listOf('customFields', CustomFieldEntry.fromMap),
+      customFields: Map<String, String>.from(
+        (map['customFields'] as Map?)?.map(
+              (key, value) => MapEntry(key.toString(), value?.toString() ?? ''),
+            ) ??
+            const {},
+      ),
+      customFieldLabels: Map<String, String>.from(
+        (map['customFieldLabels'] as Map?)?.map(
+              (key, value) => MapEntry(key.toString(), value?.toString() ?? ''),
+            ) ??
+            const {},
+      ),
       createdAt: date(map['createdAt']),
       updatedAt: date(map['updatedAt']),
     );

@@ -19,9 +19,11 @@ library;
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../../models/form_field_definition.dart';
 import '../../models/resume_document.dart';
 import '../../providers/resume_form_provider.dart';
 import '../../services/resume_repository.dart';
+import '../../services/form_field_service.dart';
 import '../../services/gemini_service.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/app_animations.dart';
@@ -44,12 +46,20 @@ class CreateResumeScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final repository = context.read<ResumeRepository>();
-    return ChangeNotifierProvider(
-      create: (_) => ResumeFormProvider(repository, initial: existing),
-      child: _WizardBody(
-        isEditing: existing != null,
-        initialStep: initialStep.clamp(0, _sections.length - 1).toInt(),
-      ),
+    return FutureBuilder<List<FormFieldDefinition>>(
+      future: FormFieldService().getResumeFields(),
+      initialData: FormFieldService.defaults,
+      builder: (context, snapshot) {
+        final fields = snapshot.data ?? FormFieldService.defaults;
+        return ChangeNotifierProvider(
+          create: (_) => ResumeFormProvider(repository, initial: existing),
+          child: _WizardBody(
+            isEditing: existing != null,
+            initialStep: initialStep.clamp(0, _sections.length - 1).toInt(),
+            fields: fields,
+          ),
+        );
+      },
     );
   }
 }
@@ -101,11 +111,6 @@ const _sections = [
     Icons.people_outline_rounded,
     'People who can vouch for you.',
   ),
-  _StepSection(
-    'Custom Fields',
-    Icons.add_box_outlined,
-    'Add your own resume sections, such as Awards or Publications.',
-  ),
 ];
 
 /// _WizardBody is responsible for this part of the ResUniq application.
@@ -113,8 +118,13 @@ const _sections = [
 class _WizardBody extends StatefulWidget {
   final bool isEditing;
   final int initialStep;
+  final List<FormFieldDefinition> fields;
 
-  const _WizardBody({required this.isEditing, required this.initialStep});
+  const _WizardBody({
+    required this.isEditing,
+    required this.initialStep,
+    required this.fields,
+  });
 
   @override
   State<_WizardBody> createState() => _WizardBodyState();
@@ -135,8 +145,20 @@ class _WizardBodyState extends State<_WizardBody> {
 
   double get _progress => (_step + 1) / _sections.length;
 
+  void _syncCustomFieldLabels(ResumeFormProvider form) {
+    final labels = <String, String>{
+      for (final field in widget.fields)
+        if (!field.builtIn && field.enabled) field.id: field.label,
+    };
+    if (labels.isNotEmpty) {
+      form.syncCustomFieldLabels(labels);
+    }
+  }
+
   Future<void> _saveDraft(BuildContext context) async {
-    await context.read<ResumeFormProvider>().save();
+    final form = context.read<ResumeFormProvider>();
+    _syncCustomFieldLabels(form);
+    await form.save();
     if (context.mounted) {
       ScaffoldMessenger.of(
         context,
@@ -146,6 +168,7 @@ class _WizardBodyState extends State<_WizardBody> {
 
   Future<void> _next(BuildContext context) async {
     final form = context.read<ResumeFormProvider>();
+    _syncCustomFieldLabels(form);
 
     final valid = _stepFormKey.currentState?.validate() ?? true;
     if (!valid) return;
@@ -211,27 +234,29 @@ class _WizardBodyState extends State<_WizardBody> {
   }
 
   bool _validateTagSection(ResumeDocument resume) {
-    if (_step == 3 && resume.skills.isEmpty) {
-      _showSectionError('Please add at least one skill.');
-      return false;
-    }
-    if (_step == 6 && resume.languages.isEmpty) {
-      _showSectionError('Please add at least one language.');
-      return false;
-    }
-    if (_step == 7 && resume.interests.isEmpty) {
-      _showSectionError('Please add at least one interest.');
-      return false;
-    }
-    if (_step == 9) {
-      for (final field in resume.customFields) {
-        if (field.label.trim().isEmpty || field.value.trim().isEmpty) {
-          _showSectionError(
-            'Please complete or remove every custom field before continuing.',
-          );
-          return false;
-        }
+    FormFieldDefinition? required;
+    for (final field in widget.fields) {
+      if (field.enabled &&
+          (( _step == 3 && field.id == 'skills') ||
+              (_step == 6 && field.id == 'languages') ||
+              (_step == 7 && field.id == 'interests'))) {
+        required = field;
+        break;
       }
+    }
+
+    if (required == null || !required.required) return true;
+
+    final empty = switch (_step) {
+      3 => resume.skills.isEmpty,
+      6 => resume.languages.isEmpty,
+      7 => resume.interests.isEmpty,
+      _ => false,
+    };
+
+    if (empty) {
+      _showSectionError('Please add at least one ${required.label.toLowerCase()}.');
+      return false;
     }
     return true;
   }
@@ -249,6 +274,42 @@ class _WizardBodyState extends State<_WizardBody> {
     map.remove('updatedAt');
     map.remove('ownerId');
     return map;
+  }
+
+  FormFieldDefinition? _field(String id) {
+    for (final field in widget.fields) {
+      if (field.id == id) return field;
+    }
+    return null;
+  }
+
+  String? Function(String?) _validator(FormFieldDefinition field) {
+    return (value) {
+      final text = value?.trim() ?? '';
+      if (field.required && text.isEmpty) {
+        return '${field.label} is required';
+      }
+      if (text.isEmpty) return null;
+
+      switch (field.fieldType) {
+        case 'email':
+          return RegExp(r'^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$').hasMatch(text)
+              ? null
+              : 'Please enter a valid email';
+        case 'phone':
+          return RegExp(r'^\\d{10}$').hasMatch(text)
+              ? null
+              : 'Phone number must be exactly 10 digits';
+        case 'number':
+          return double.tryParse(text) == null ? 'Enter a valid number' : null;
+        case 'url':
+          final uri = Uri.tryParse(text);
+          return uri != null && (uri.hasScheme || text.startsWith('www.'))
+              ? null
+              : 'Please enter a valid URL';
+      }
+      return null;
+    };
   }
 
   void _back() {
@@ -362,22 +423,23 @@ class _WizardBodyState extends State<_WizardBody> {
                           key: ValueKey(_step),
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            if (_step == 0) ...[
+                            if (_step == 0 &&
+                                _field('resume.title')?.enabled == true) ...[
                               Text(
-                                'Resume Name',
+                                _field('resume.title')!.label,
                                 style: Theme.of(context).textTheme.titleMedium,
                               ),
                               const SizedBox(height: 8),
                               LabeledField(
-                                label: 'e.g. Software Developer Resume',
+                                label: _field('resume.title')!.placeholder.isEmpty
+                                    ? _field('resume.title')!.label
+                                    : _field('resume.title')!.placeholder,
                                 initialValue:
-                                    context
-                                        .read<ResumeFormProvider>()
-                                        .draft
-                                        .title,
+                                    context.read<ResumeFormProvider>().draft.title,
                                 onChanged:
                                     context.read<ResumeFormProvider>().setTitle,
-                                requiredField: true,
+                                requiredField: _field('resume.title')!.required,
+                                validator: _validator(_field('resume.title')!,),
                               ),
                               const SizedBox(height: 8),
                             ],
@@ -406,7 +468,7 @@ class _WizardBodyState extends State<_WizardBody> {
                               style: Theme.of(context).textTheme.bodyMedium,
                             ),
                             const SizedBox(height: 24),
-                            _StepForm(step: _step),
+                            _StepForm(step: _step, fields: widget.fields),
                           ],
                         ),
                       ),
@@ -547,7 +609,100 @@ class _WizardBodyState extends State<_WizardBody> {
 /// bound directly to [ResumeFormProvider].
 class _StepForm extends StatelessWidget {
   final int step;
-  const _StepForm({required this.step});
+  final List<FormFieldDefinition> fields;
+
+  const _StepForm({
+    required this.step,
+    required this.fields,
+  });
+
+  FormFieldDefinition? _field(String key) {
+    for (final field in fields) {
+      if (field.id == key && field.enabled) return field;
+    }
+    return null;
+  }
+
+  List<FormFieldDefinition> get _customFields => fields
+      .where((field) => field.enabled && !field.builtIn)
+      .toList()
+    ..sort((a, b) => a.order.compareTo(b.order));
+
+  String? Function(String?) _validator(FormFieldDefinition field) {
+    return (value) {
+      final text = value?.trim() ?? '';
+      if (field.required && text.isEmpty) {
+        return '${field.label} is required';
+      }
+      if (text.isEmpty) return null;
+
+      switch (field.fieldType) {
+        case 'email':
+          return RegExp(r'^[^\s@]+@[^\s@]+\.[^\s@]+$').hasMatch(text)
+              ? null
+              : 'Please enter a valid email';
+        case 'phone':
+          return RegExp(r'^\d{10}$').hasMatch(text)
+              ? null
+              : 'Phone number must be exactly 10 digits';
+        case 'number':
+          return double.tryParse(text) == null ? 'Enter a valid number' : null;
+        case 'url':
+          final uri = Uri.tryParse(text);
+          return uri != null && (uri.hasScheme || text.startsWith('www.'))
+              ? null
+              : 'Please enter a valid URL';
+      }
+      return null;
+    };
+  }
+
+  LabeledField _fieldWidget({
+    required FormFieldDefinition field,
+    required String initialValue,
+    required ValueChanged<String> onChanged,
+  }) {
+    return LabeledField(
+      label: field.label,
+      initialValue: initialValue,
+      requiredField: field.required,
+      maxLines: field.multiline ? 3 : 1,
+      keyboardType: switch (field.fieldType) {
+        'email' => TextInputType.emailAddress,
+        'phone' => TextInputType.phone,
+        'number' => TextInputType.number,
+        'url' => TextInputType.url,
+        _ => field.multiline ? TextInputType.multiline : TextInputType.text,
+      },
+      validator: _validator(field),
+      onChanged: onChanged,
+    );
+  }
+
+  List<Widget> _customFieldWidgets(BuildContext context) {
+    final form = context.watch<ResumeFormProvider>();
+    return [
+      if (_customFields.isNotEmpty) ...[
+        const SizedBox(height: 24),
+        Text(
+          'Additional Information',
+          style: Theme.of(context).textTheme.titleLarge,
+        ),
+        const SizedBox(height: 8),
+        Text(
+          'Extra fields configured by the administrator.',
+          style: Theme.of(context).textTheme.bodyMedium,
+        ),
+        const SizedBox(height: 16),
+        for (final field in _customFields)
+          _fieldWidget(
+            field: field,
+            initialValue: form.draft.customFields[field.id] ?? '',
+            onChanged: (value) => form.setCustomField(field.id, value, label: field.label),
+          ),
+      ],
+    ];
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -555,421 +710,332 @@ class _StepForm extends StatelessWidget {
     final draft = form.draft;
 
     switch (step) {
-      case 0: // Personal Information
+      case 0:
         final p = draft.personal;
+        final visible = fields.where(
+          (f) => f.enabled && f.builtIn && f.section == 'Personal Information',
+        );
         return Column(
           children: [
-            LabeledField(
-              label: 'Full Name',
-              initialValue: p.fullName,
-              requiredField: true,
-              onChanged:
-                  (v) => form.updatePersonal((pi) => pi.copyWith(fullName: v)),
-            ),
-            LabeledField(
-              label: 'Target Job Role',
-              initialValue: p.jobRole,
-              requiredField: true,
-              onChanged:
-                  (v) => form.updatePersonal((pi) => pi.copyWith(jobRole: v)),
-            ),
-            LabeledField(
-              label: 'Email',
-              initialValue: p.email,
-              requiredField: true,
-              validator: (value) {
-                if (value == null || value.isEmpty) {
-                  return 'Please enter your email';
-                }
-                final email = RegExp(r'^[^\s@]+@[^\s@]+\.[^\s@]+$');
-                return email.hasMatch(value)
-                    ? null
-                    : 'Please enter a valid email';
-              },
-              keyboardType: TextInputType.emailAddress,
-              onChanged:
-                  (v) => form.updatePersonal((pi) => pi.copyWith(email: v)),
-            ),
-            LabeledField(
-              label: 'Phone',
-              initialValue: p.phone,
-              requiredField: true,
-              keyboardType: TextInputType.phone,
-              validator: (value) {
-                final phone = value?.trim() ?? '';
-                if (!RegExp(r'^\d{10}$').hasMatch(phone)) {
-                  return 'Phone number must be exactly 10 digits';
-                }
-                return null;
-              },
-              onChanged:
-                  (v) => form.updatePersonal((pi) => pi.copyWith(phone: v)),
-            ),
-            LabeledField(
-              label: 'Location',
-              initialValue: p.location,
-              onChanged:
-                  (v) => form.updatePersonal((pi) => pi.copyWith(location: v)),
-            ),
-            LabeledField(
-              label: 'Website / LinkedIn',
-              initialValue: p.website,
-              validator: (value) {
-                if (value == null || value.isEmpty) return null;
-                final uri = Uri.tryParse(value);
-                return uri != null &&
-                        (uri.hasScheme || value.startsWith('www.'))
-                    ? null
-                    : 'Please enter a valid website or LinkedIn URL';
-              },
-              onChanged:
-                  (v) => form.updatePersonal((pi) => pi.copyWith(website: v)),
-            ),
+            for (final field in visible)
+              if (field.fieldKey == 'personal.fullName')
+                _fieldWidget(
+                  field: field,
+                  initialValue: p.fullName,
+                  onChanged: (v) =>
+                      form.updatePersonal((pi) => pi.copyWith(fullName: v)),
+                )
+              else if (field.fieldKey == 'personal.jobRole')
+                _fieldWidget(
+                  field: field,
+                  initialValue: p.jobRole,
+                  onChanged: (v) =>
+                      form.updatePersonal((pi) => pi.copyWith(jobRole: v)),
+                )
+              else if (field.fieldKey == 'personal.email')
+                _fieldWidget(
+                  field: field,
+                  initialValue: p.email,
+                  onChanged: (v) =>
+                      form.updatePersonal((pi) => pi.copyWith(email: v)),
+                )
+              else if (field.fieldKey == 'personal.phone')
+                _fieldWidget(
+                  field: field,
+                  initialValue: p.phone,
+                  onChanged: (v) =>
+                      form.updatePersonal((pi) => pi.copyWith(phone: v)),
+                )
+              else if (field.fieldKey == 'personal.location')
+                _fieldWidget(
+                  field: field,
+                  initialValue: p.location,
+                  onChanged: (v) =>
+                      form.updatePersonal((pi) => pi.copyWith(location: v)),
+                )
+              else if (field.fieldKey == 'personal.website')
+                _fieldWidget(
+                  field: field,
+                  initialValue: p.website,
+                  onChanged: (v) =>
+                      form.updatePersonal((pi) => pi.copyWith(website: v)),
+                ),
           ],
         );
 
-      case 1: // Education
+      case 1:
+        final school = _field('education.school');
+        final degree = _field('education.degree');
+        final years = _field('education.years');
         return Column(
           children: [
             for (final e in draft.education)
               EntryCard(
                 onRemove: () => form.removeEducation(e.id),
                 children: [
-                  LabeledField(
-                    label: 'School / University',
-                    initialValue: e.school,
-                    requiredField: true,
-                    onChanged:
-                        (v) => form.updateEducation(
-                          e.id,
-                          (x) => x.copyWith(school: v),
-                        ),
-                  ),
-                  LabeledField(
-                    label: 'Degree',
-                    initialValue: e.degree,
-                    requiredField: true,
-                    onChanged:
-                        (v) => form.updateEducation(
-                          e.id,
-                          (x) => x.copyWith(degree: v),
-                        ),
-                  ),
-                  LabeledField(
-                    label: 'Years (e.g. 2020 - 2024)',
-                    initialValue: e.years,
-                    requiredField: true,
-                    validator: (value) {
-                      final years = value?.trim() ?? '';
-                      final pattern = RegExp(
-                        r'^\d{4}\s*-\s*(\d{4}|Present)$',
-                        caseSensitive: false,
-                      );
-                      return pattern.hasMatch(years)
-                          ? null
-                          : 'Use format YYYY - YYYY or YYYY - Present';
-                    },
-                    onChanged:
-                        (v) => form.updateEducation(
-                          e.id,
-                          (x) => x.copyWith(years: v),
-                        ),
-                  ),
+                  if (school != null)
+                    _fieldWidget(
+                      field: school,
+                      initialValue: e.school,
+                      onChanged: (v) => form.updateEducation(
+                        e.id,
+                        (x) => x.copyWith(school: v),
+                      ),
+                    ),
+                  if (degree != null)
+                    _fieldWidget(
+                      field: degree,
+                      initialValue: e.degree,
+                      onChanged: (v) => form.updateEducation(
+                        e.id,
+                        (x) => x.copyWith(degree: v),
+                      ),
+                    ),
+                  if (years != null)
+                    _fieldWidget(
+                      field: years,
+                      initialValue: e.years,
+                      onChanged: (v) => form.updateEducation(
+                        e.id,
+                        (x) => x.copyWith(years: v),
+                      ),
+                    ),
                 ],
               ),
-            AddEntryButton(
-              label: 'Add Education',
-              onPressed: form.addEducation,
-            ),
+            if (school != null || degree != null || years != null)
+              AddEntryButton(
+                label: 'Add Education',
+                onPressed: form.addEducation,
+              ),
           ],
         );
 
-      case 2: // Experience
+      case 2:
+        final role = _field('experience.role');
+        final company = _field('experience.company');
+        final duration = _field('experience.duration');
+        final description = _field('experience.description');
         return Column(
           children: [
             for (final e in draft.experience)
               EntryCard(
                 onRemove: () => form.removeExperience(e.id),
                 children: [
-                  LabeledField(
-                    label: 'Job Title',
-                    initialValue: e.role,
-                    requiredField: true,
-                    onChanged:
-                        (v) => form.updateExperience(
-                          e.id,
-                          (x) => x.copyWith(role: v),
-                        ),
-                  ),
-                  LabeledField(
-                    label: 'Company',
-                    initialValue: e.company,
-                    requiredField: true,
-                    onChanged:
-                        (v) => form.updateExperience(
-                          e.id,
-                          (x) => x.copyWith(company: v),
-                        ),
-                  ),
-                  LabeledField(
-                    label: 'Duration (e.g. Jan 2022 - Present)',
-                    initialValue: e.duration,
-                    requiredField: true,
-                    onChanged:
-                        (v) => form.updateExperience(
-                          e.id,
-                          (x) => x.copyWith(duration: v),
-                        ),
-                  ),
-                  LabeledField(
-                    label: 'Description / achievements',
-                    initialValue: e.description,
-                    requiredField: true,
-                    maxLines: 3,
-                    onChanged:
-                        (v) => form.updateExperience(
-                          e.id,
-                          (x) => x.copyWith(description: v),
-                        ),
-                  ),
+                  if (role != null)
+                    _fieldWidget(
+                      field: role,
+                      initialValue: e.role,
+                      onChanged: (v) => form.updateExperience(
+                        e.id,
+                        (x) => x.copyWith(role: v),
+                      ),
+                    ),
+                  if (company != null)
+                    _fieldWidget(
+                      field: company,
+                      initialValue: e.company,
+                      onChanged: (v) => form.updateExperience(
+                        e.id,
+                        (x) => x.copyWith(company: v),
+                      ),
+                    ),
+                  if (duration != null)
+                    _fieldWidget(
+                      field: duration,
+                      initialValue: e.duration,
+                      onChanged: (v) => form.updateExperience(
+                        e.id,
+                        (x) => x.copyWith(duration: v),
+                      ),
+                    ),
+                  if (description != null)
+                    _fieldWidget(
+                      field: description,
+                      initialValue: e.description,
+                      onChanged: (v) => form.updateExperience(
+                        e.id,
+                        (x) => x.copyWith(description: v),
+                      ),
+                    ),
                 ],
               ),
-            AddEntryButton(
-              label: 'Add Experience',
-              onPressed: form.addExperience,
-            ),
+            if (role != null || company != null || duration != null || description != null)
+              AddEntryButton(
+                label: 'Add Experience',
+                onPressed: form.addExperience,
+              ),
           ],
         );
 
-      case 3: // Skills
-        return ChipEntryField(
-          hint: 'Add a skill and press +',
-          values: draft.skills,
-          onAdd: form.addSkill,
-          onRemoveAt: form.removeSkillAt,
-        );
+      case 3:
+        final field = _field('skills');
+        return field == null
+            ? const SizedBox.shrink()
+            : ChipEntryField(
+                hint: '${field.label}: add an item and press +',
+                values: draft.skills,
+                onAdd: form.addSkill,
+                onRemoveAt: form.removeSkillAt,
+              );
 
-      case 4: // Projects
+      case 4:
+        final name = _field('projects.name');
+        final description = _field('projects.description');
+        final link = _field('projects.link');
         return Column(
           children: [
             for (final e in draft.projects)
               EntryCard(
                 onRemove: () => form.removeProject(e.id),
                 children: [
-                  LabeledField(
-                    label: 'Project Name',
-                    initialValue: e.name,
-                    requiredField: true,
-                    onChanged:
-                        (v) => form.updateProject(
-                          e.id,
-                          (x) => x.copyWith(name: v),
-                        ),
-                  ),
-                  LabeledField(
-                    label: 'Description',
-                    initialValue: e.description,
-                    requiredField: true,
-                    maxLines: 3,
-                    onChanged:
-                        (v) => form.updateProject(
-                          e.id,
-                          (x) => x.copyWith(description: v),
-                        ),
-                  ),
-                  LabeledField(
-                    label: 'Link (optional)',
-                    initialValue: e.link,
-                    validator: (value) {
-                      if (value == null || value.isEmpty) return null;
-                      final uri = Uri.tryParse(value);
-                      return uri != null &&
-                              (uri.hasScheme || value.startsWith('www.'))
-                          ? null
-                          : 'Please enter a valid project URL';
-                    },
-                    onChanged:
-                        (v) => form.updateProject(
-                          e.id,
-                          (x) => x.copyWith(link: v),
-                        ),
-                  ),
+                  if (name != null)
+                    _fieldWidget(
+                      field: name,
+                      initialValue: e.name,
+                      onChanged: (v) => form.updateProject(
+                        e.id,
+                        (x) => x.copyWith(name: v),
+                      ),
+                    ),
+                  if (description != null)
+                    _fieldWidget(
+                      field: description,
+                      initialValue: e.description,
+                      onChanged: (v) => form.updateProject(
+                        e.id,
+                        (x) => x.copyWith(description: v),
+                      ),
+                    ),
+                  if (link != null)
+                    _fieldWidget(
+                      field: link,
+                      initialValue: e.link,
+                      onChanged: (v) => form.updateProject(
+                        e.id,
+                        (x) => x.copyWith(link: v),
+                      ),
+                    ),
                 ],
               ),
-            AddEntryButton(label: 'Add Project', onPressed: form.addProject),
+            if (name != null || description != null || link != null)
+              AddEntryButton(label: 'Add Project', onPressed: form.addProject),
           ],
         );
 
-      case 5: // Certifications
+      case 5:
+        final name = _field('certifications.name');
+        final issuer = _field('certifications.issuer');
+        final year = _field('certifications.year');
         return Column(
           children: [
             for (final e in draft.certifications)
               EntryCard(
                 onRemove: () => form.removeCertification(e.id),
                 children: [
-                  LabeledField(
-                    label: 'Certification Name',
-                    initialValue: e.name,
-                    requiredField: true,
-                    onChanged:
-                        (v) => form.updateCertification(
-                          e.id,
-                          (x) => x.copyWith(name: v),
-                        ),
-                  ),
-                  LabeledField(
-                    label: 'Issuer',
-                    initialValue: e.issuer,
-                    requiredField: true,
-                    onChanged:
-                        (v) => form.updateCertification(
-                          e.id,
-                          (x) => x.copyWith(issuer: v),
-                        ),
-                  ),
-                  LabeledField(
-                    label: 'Year',
-                    initialValue: e.year,
-                    requiredField: true,
-                    validator: (value) {
-                      final year = value?.trim() ?? '';
-                      return RegExp(r'^\d{4}$').hasMatch(year)
-                          ? null
-                          : 'Year must be 4 digits';
-                    },
-                    onChanged:
-                        (v) => form.updateCertification(
-                          e.id,
-                          (x) => x.copyWith(year: v),
-                        ),
-                  ),
+                  if (name != null)
+                    _fieldWidget(
+                      field: name,
+                      initialValue: e.name,
+                      onChanged: (v) => form.updateCertification(
+                        e.id,
+                        (x) => x.copyWith(name: v),
+                      ),
+                    ),
+                  if (issuer != null)
+                    _fieldWidget(
+                      field: issuer,
+                      initialValue: e.issuer,
+                      onChanged: (v) => form.updateCertification(
+                        e.id,
+                        (x) => x.copyWith(issuer: v),
+                      ),
+                    ),
+                  if (year != null)
+                    _fieldWidget(
+                      field: year,
+                      initialValue: e.year,
+                      onChanged: (v) => form.updateCertification(
+                        e.id,
+                        (x) => x.copyWith(year: v),
+                      ),
+                    ),
                 ],
               ),
-            AddEntryButton(
-              label: 'Add Certification',
-              onPressed: form.addCertification,
-            ),
+            if (name != null || issuer != null || year != null)
+              AddEntryButton(
+                label: 'Add Certification',
+                onPressed: form.addCertification,
+              ),
           ],
         );
 
-      case 6: // Languages
-        return ChipEntryField(
-          hint: 'Add a language and press +',
-          values: draft.languages,
-          onAdd: form.addLanguage,
-          onRemoveAt: form.removeLanguageAt,
-        );
+      case 6:
+        final field = _field('languages');
+        return field == null
+            ? const SizedBox.shrink()
+            : ChipEntryField(
+                hint: '${field.label}: add an item and press +',
+                values: draft.languages,
+                onAdd: form.addLanguage,
+                onRemoveAt: form.removeLanguageAt,
+              );
 
-      case 7: // Interests
-        return ChipEntryField(
-          hint: 'Add an interest and press +',
-          values: draft.interests,
-          onAdd: form.addInterest,
-          onRemoveAt: form.removeInterestAt,
-        );
+      case 7:
+        final field = _field('interests');
+        return field == null
+            ? const SizedBox.shrink()
+            : ChipEntryField(
+                hint: '${field.label}: add an item and press +',
+                values: draft.interests,
+                onAdd: form.addInterest,
+                onRemoveAt: form.removeInterestAt,
+              );
 
-      case 8: // References
+      case 8:
+        final name = _field('references.name');
+        final relation = _field('references.relation');
+        final contact = _field('references.contact');
         return Column(
           children: [
             for (final e in draft.references)
               EntryCard(
                 onRemove: () => form.removeReference(e.id),
                 children: [
-                  LabeledField(
-                    label: 'Name',
-                    initialValue: e.name,
-                    requiredField: true,
-                    onChanged:
-                        (v) => form.updateReference(
-                          e.id,
-                          (x) => x.copyWith(name: v),
-                        ),
-                  ),
-                  LabeledField(
-                    label: 'Relation (e.g. Manager at Acme)',
-                    initialValue: e.relation,
-                    requiredField: true,
-                    onChanged:
-                        (v) => form.updateReference(
-                          e.id,
-                          (x) => x.copyWith(relation: v),
-                        ),
-                  ),
-                  LabeledField(
-                    label: 'Contact (email or phone)',
-                    initialValue: e.contact,
-                    requiredField: true,
-                    validator: (value) {
-                      if (value == null || value.isEmpty) {
-                        return 'Please enter a contact';
-                      }
-                      final email = RegExp(r'^[^\s@]+@[^\s@]+\.[^\s@]+$');
-                      final phone = RegExp(r'^\d{10}$');
-                      return email.hasMatch(value) || phone.hasMatch(value)
-                          ? null
-                          : 'Enter a valid email or exactly 10-digit phone number';
-                    },
-                    onChanged:
-                        (v) => form.updateReference(
-                          e.id,
-                          (x) => x.copyWith(contact: v),
-                        ),
-                  ),
+                  if (name != null)
+                    _fieldWidget(
+                      field: name,
+                      initialValue: e.name,
+                      onChanged: (v) => form.updateReference(
+                        e.id,
+                        (x) => x.copyWith(name: v),
+                      ),
+                    ),
+                  if (relation != null)
+                    _fieldWidget(
+                      field: relation,
+                      initialValue: e.relation,
+                      onChanged: (v) => form.updateReference(
+                        e.id,
+                        (x) => x.copyWith(relation: v),
+                      ),
+                    ),
+                  if (contact != null)
+                    _fieldWidget(
+                      field: contact,
+                      initialValue: e.contact,
+                      onChanged: (v) => form.updateReference(
+                        e.id,
+                        (x) => x.copyWith(contact: v),
+                      ),
+                    ),
                 ],
               ),
-            AddEntryButton(
-              label: 'Add Reference',
-              onPressed: form.addReference,
-            ),
-          ],
-        );
-
-      case 9: // Custom Fields
-        return Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            if (draft.customFields.isEmpty)
-              Container(
-                width: double.infinity,
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  color: AppColors.primaryTint,
-                  borderRadius: BorderRadius.circular(AppRadius.md),
-                ),
-                child: const Text(
-                  'Add any extra section you want on your resume. '
-                  'Examples: Awards, Publications, Volunteer Work, Achievements.',
-                ),
+            if (name != null || relation != null || contact != null)
+              AddEntryButton(
+                label: 'Add Reference',
+                onPressed: form.addReference,
               ),
-            for (final field in draft.customFields)
-              EntryCard(
-                onRemove: () => form.removeCustomField(field.id),
-                children: [
-                  LabeledField(
-                    label: 'Field Title',
-                    initialValue: field.label,
-                    requiredField: true,
-                    onChanged: (v) => form.updateCustomField(
-                      field.id,
-                      (x) => x.copyWith(label: v.trim()),
-                    ),
-                  ),
-                  LabeledField(
-                    label: 'Content',
-                    initialValue: field.value,
-                    requiredField: true,
-                    maxLines: 5,
-                    onChanged: (v) => form.updateCustomField(
-                      field.id,
-                      (x) => x.copyWith(value: v.trim()),
-                    ),
-                  ),
-                ],
-              ),
-            AddEntryButton(
-              label: 'Add Custom Field',
-              onPressed: form.addCustomField,
-            ),
+            ..._customFieldWidgets(context),
           ],
         );
 
@@ -978,3 +1044,4 @@ class _StepForm extends StatelessWidget {
     }
   }
 }
+

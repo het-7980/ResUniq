@@ -440,18 +440,37 @@ class PdfGenerator {
           }
           break;
         case 'customFields':
-          if (resume.customFields.isNotEmpty) {
-            // Render each user-defined field as its own resume section.
-            // The field title is controlled by the user, while the template
-            // still controls typography, spacing, and section styling.
-            for (final field in resume.customFields) {
-              final label = field.label.trim();
-              final value = field.value.trim();
-              if (label.isEmpty || value.isEmpty) continue;
-              widgets.add(_sectionTitle(label, template, accent, secondary));
-              widgets.add(_bodyText(value, text, template));
-              widgets.add(pw.SizedBox(height: template.sectionSpacing));
-            }
+          final entries = resume.customFields.entries
+              .where((entry) => entry.value.trim().isNotEmpty)
+              .toList();
+          if (entries.isNotEmpty) {
+            title = 'Additional Information';
+            body = pw.Column(
+              crossAxisAlignment: pw.CrossAxisAlignment.start,
+              children: entries.map((entry) {
+                final label = resume.customFieldLabels[entry.key] ??
+                    entry.key
+                        .replaceAll(RegExp(r'[_\.]+'), ' ')
+                        .trim();
+                return pw.Padding(
+                  padding: const pw.EdgeInsets.only(bottom: 6),
+                  child: pw.Column(
+                    crossAxisAlignment: pw.CrossAxisAlignment.start,
+                    children: [
+                      pw.Text(
+                        label,
+                        style: pw.TextStyle(
+                          fontSize: 9.3 * template.fontScale,
+                          fontWeight: pw.FontWeight.bold,
+                          color: text,
+                        ),
+                      ),
+                      _bodyText(entry.value, text, template),
+                    ],
+                  ),
+                );
+              }).toList(),
+            );
           }
           break;
       }
