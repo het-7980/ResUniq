@@ -767,6 +767,7 @@ class _StepForm extends StatelessWidget {
       case 1:
         final school = _field('education.school');
         final degree = _field('education.degree');
+        final course = _field('education.course');
         final years = _field('education.years');
         return Column(
           children: [
@@ -792,6 +793,15 @@ class _StepForm extends StatelessWidget {
                         (x) => x.copyWith(degree: v),
                       ),
                     ),
+                  if (course != null)
+                    _fieldWidget(
+                      field: course,
+                      initialValue: e.course,
+                      onChanged: (v) => form.updateEducation(
+                        e.id,
+                        (x) => x.copyWith(course: v),
+                      ),
+                    ),
                   if (years != null)
                     _fieldWidget(
                       field: years,
@@ -803,7 +813,7 @@ class _StepForm extends StatelessWidget {
                     ),
                 ],
               ),
-            if (school != null || degree != null || years != null)
+            if (school != null || degree != null || course != null || years != null)
               AddEntryButton(
                 label: 'Add Education',
                 onPressed: form.addEducation,

@@ -3,9 +3,9 @@
 /// ---------------------------------------------------------------------------
 /// Central suggestion catalog for resume form fields.
 ///
-/// Suggestions are intentionally attached only to fields where a known value is
-/// useful. Personal values such as a user's name, email, phone number, project
-/// name and reference name return no suggestions.
+/// Suggestions are attached only to fields where known values are useful.
+/// The catalogs below are intentionally international so users are not limited
+/// to India. Users can still enter a value that is not in a suggestion list.
 /// ---------------------------------------------------------------------------
 library;
 
@@ -15,9 +15,10 @@ class SuggestionService {
   static const Map<String, List<String>> _byFieldId = {
     'personal.jobRole': _jobTitles,
     'experience.role': _jobTitles,
-    'personal.location': _locations,
-    'education.school': _institutions,
+    'personal.location': _worldLocations,
+    'education.school': _worldInstitutions,
     'education.degree': _degrees,
+    'education.course': _courses,
     'experience.company': _companies,
     'skills': _skills,
     'certifications.name': _certifications,
@@ -26,12 +27,13 @@ class SuggestionService {
     'interests': _interests,
   };
 
-  /// Returns ranked matches for [fieldId]. Matching starts with prefix matches
-  /// (for example, "flu" -> "Flutter") and then includes word matches.
+  /// Returns ranked matches. Prefix matches are shown first, followed by
+  /// matches at the beginning of a word and then general contains matches.
+  /// Typing is never restricted: these are suggestions, not a fixed dropdown.
   static List<String> suggestionsFor(
     String fieldId,
     String query, {
-    int limit = 8,
+    int limit = 10,
   }) {
     final source = _byFieldId[fieldId];
     if (source == null) return const [];
@@ -40,18 +42,23 @@ class SuggestionService {
     if (normalized.isEmpty) return const [];
 
     final prefix = <String>[];
+    final wordPrefix = <String>[];
     final contains = <String>[];
 
     for (final value in source) {
       final candidate = value.toLowerCase();
       if (candidate.startsWith(normalized)) {
         prefix.add(value);
+      } else if (candidate.split(RegExp(r'[\s,()/&-]+')).any(
+            (word) => word.startsWith(normalized),
+          )) {
+        wordPrefix.add(value);
       } else if (candidate.contains(normalized)) {
         contains.add(value);
       }
     }
 
-    final result = [...prefix, ...contains];
+    final result = <String>[...prefix, ...wordPrefix, ...contains];
     return result.length <= limit ? result : result.take(limit).toList();
   }
 
@@ -82,6 +89,13 @@ class SuggestionService {
     'Digital Marketing Specialist',
     'Accountant',
     'Human Resources Executive',
+    'Sales Executive',
+    'Financial Analyst',
+    'Mechanical Engineer',
+    'Civil Engineer',
+    'Electrical Engineer',
+    'Teacher',
+    'Research Assistant',
   ];
 
   static const _degrees = <String>[
@@ -91,14 +105,104 @@ class SuggestionService {
     'Bachelor of Science (B.Sc)',
     'Bachelor of Commerce (B.Com)',
     'Bachelor of Business Administration (BBA)',
+    'Bachelor of Arts (B.A.)',
+    'Bachelor of Architecture (B.Arch)',
+    'Bachelor of Pharmacy (B.Pharm)',
+    'Bachelor of Laws (LL.B.)',
+    'Bachelor of Medicine, Bachelor of Surgery (MBBS)',
     'Master of Technology (M.Tech)',
+    'Master of Engineering (M.E.)',
     'Master of Computer Applications (MCA)',
     'Master of Science (M.Sc)',
+    'Master of Commerce (M.Com)',
     'Master of Business Administration (MBA)',
-    'Diploma in Engineering',
-    'Diploma in Computer Engineering',
+    'Master of Arts (M.A.)',
+    'Master of Pharmacy (M.Pharm)',
+    'Master of Laws (LL.M.)',
+    'Doctor of Philosophy (Ph.D.)',
+    'Associate Degree',
+    'Diploma',
+    'Higher National Diploma (HND)',
     'Higher Secondary Certificate (HSC)',
     'Secondary School Certificate (SSC)',
+    'High School Diploma',
+    'General Certificate of Education (A Levels)',
+    'International Baccalaureate (IB Diploma)',
+  ];
+
+  /// Subjects, majors, branches and specializations. This is separate from
+  /// the degree because "B.Tech" and "Computer Science and Engineering" are
+  /// different pieces of education information.
+  static const _courses = <String>[
+    'Computer Science and Engineering (CSE)',
+    'Computer Engineering',
+    'Information Technology (IT)',
+    'Software Engineering',
+    'Artificial Intelligence (AI)',
+    'Artificial Intelligence and Machine Learning (AI & ML)',
+    'Machine Learning',
+    'Data Science',
+    'Data Analytics',
+    'Cyber Security',
+    'Cloud Computing',
+    'Internet of Things (IoT)',
+    'Robotics and Automation',
+    'Electronics and Communication Engineering (ECE)',
+    'Electronics and Electrical Engineering',
+    'Electrical Engineering',
+    'Electrical and Electronics Engineering (EEE)',
+    'Mechanical Engineering',
+    'Civil Engineering',
+    'Chemical Engineering',
+    'Biomedical Engineering',
+    'Biotechnology',
+    'Aerospace Engineering',
+    'Aeronautical Engineering',
+    'Automobile Engineering',
+    'Industrial Engineering',
+    'Environmental Engineering',
+    'Materials Science and Engineering',
+    'Mechatronics Engineering',
+    'Architecture',
+    'Physics',
+    'Chemistry',
+    'Mathematics',
+    'Statistics',
+    'Biology',
+    'Microbiology',
+    'Biochemistry',
+    'Environmental Science',
+    'Geology',
+    'Economics',
+    'Accounting',
+    'Finance',
+    'Marketing',
+    'Human Resource Management (HRM)',
+    'International Business',
+    'Business Analytics',
+    'Operations Management',
+    'Supply Chain Management',
+    'Entrepreneurship',
+    'Commerce',
+    'English Literature',
+    'Psychology',
+    'Sociology',
+    'Political Science',
+    'History',
+    'Geography',
+    'Journalism and Mass Communication',
+    'Law',
+    'Medicine',
+    'Nursing',
+    'Pharmacy',
+    'Physiotherapy',
+    'Public Health',
+    'Education',
+    'Hotel Management',
+    'Fashion Design',
+    'Graphic Design',
+    'Animation and Multimedia',
+    'Game Design and Development',
   ];
 
   static const _skills = <String>[
@@ -114,7 +218,9 @@ class SuggestionService {
   static const _languages = <String>[
     'English', 'Hindi', 'Gujarati', 'Marathi', 'Punjabi', 'Bengali',
     'Tamil', 'Telugu', 'Kannada', 'Malayalam', 'Urdu', 'French', 'German',
-    'Spanish', 'Japanese', 'Korean', 'Chinese', 'Arabic',
+    'Spanish', 'Portuguese', 'Italian', 'Dutch', 'Russian', 'Japanese',
+    'Korean', 'Chinese (Mandarin)', 'Arabic', 'Turkish', 'Vietnamese',
+    'Indonesian', 'Thai', 'Swedish', 'Polish', 'Greek', 'Hebrew',
   ];
 
   static const _interests = <String>[
@@ -123,15 +229,110 @@ class SuggestionService {
     'Cooking', 'Writing', 'Volunteering', 'Open Source', 'Technology',
   ];
 
-  static const _locations = <String>[
-    'Ahmedabad, Gujarat', 'Surat, Gujarat', 'Vadodara, Gujarat',
-    'Rajkot, Gujarat', 'Gandhinagar, Gujarat', 'Mumbai, Maharashtra',
-    'Pune, Maharashtra', 'Bengaluru, Karnataka', 'Hyderabad, Telangana',
-    'Chennai, Tamil Nadu', 'New Delhi, Delhi', 'Noida, Uttar Pradesh',
-    'Gurugram, Haryana', 'Kolkata, West Bengal', 'Remote',
+  /// A broad international city/location catalog. It is deliberately not
+  /// country-specific. Users can always type a city not present here.
+  static const _worldLocations = <String>[
+    'Remote',
+    'Ahmedabad, Gujarat, India',
+    'Mumbai, Maharashtra, India',
+    'New Delhi, Delhi, India',
+    'Bengaluru, Karnataka, India',
+    'Hyderabad, Telangana, India',
+    'Chennai, Tamil Nadu, India',
+    'Kolkata, West Bengal, India',
+    'Pune, Maharashtra, India',
+    'Surat, Gujarat, India',
+    'Vadodara, Gujarat, India',
+    'Gandhinagar, Gujarat, India',
+    'Singapore',
+    'Hong Kong',
+    'Tokyo, Japan',
+    'Osaka, Japan',
+    'Seoul, South Korea',
+    'Beijing, China',
+    'Shanghai, China',
+    'Shenzhen, China',
+    'Taipei, Taiwan',
+    'Bangkok, Thailand',
+    'Kuala Lumpur, Malaysia',
+    'Jakarta, Indonesia',
+    'Manila, Philippines',
+    'Ho Chi Minh City, Vietnam',
+    'Hanoi, Vietnam',
+    'Dubai, United Arab Emirates',
+    'Abu Dhabi, United Arab Emirates',
+    'Doha, Qatar',
+    'Riyadh, Saudi Arabia',
+    'Jeddah, Saudi Arabia',
+    'Tel Aviv, Israel',
+    'Istanbul, Türkiye',
+    'London, United Kingdom',
+    'Manchester, United Kingdom',
+    'Edinburgh, United Kingdom',
+    'Dublin, Ireland',
+    'Paris, France',
+    'Berlin, Germany',
+    'Munich, Germany',
+    'Frankfurt, Germany',
+    'Amsterdam, Netherlands',
+    'Brussels, Belgium',
+    'Zurich, Switzerland',
+    'Geneva, Switzerland',
+    'Vienna, Austria',
+    'Madrid, Spain',
+    'Barcelona, Spain',
+    'Lisbon, Portugal',
+    'Rome, Italy',
+    'Milan, Italy',
+    'Stockholm, Sweden',
+    'Copenhagen, Denmark',
+    'Oslo, Norway',
+    'Helsinki, Finland',
+    'Warsaw, Poland',
+    'Prague, Czech Republic',
+    'Budapest, Hungary',
+    'Bucharest, Romania',
+    'Athens, Greece',
+    'Moscow, Russia',
+    'Kyiv, Ukraine',
+    'New York, NY, United States',
+    'San Francisco, CA, United States',
+    'San Jose, CA, United States',
+    'Los Angeles, CA, United States',
+    'Seattle, WA, United States',
+    'Austin, TX, United States',
+    'Boston, MA, United States',
+    'Chicago, IL, United States',
+    'Washington, DC, United States',
+    'Miami, FL, United States',
+    'Toronto, Ontario, Canada',
+    'Vancouver, British Columbia, Canada',
+    'Montreal, Quebec, Canada',
+    'Ottawa, Ontario, Canada',
+    'Mexico City, Mexico',
+    'São Paulo, Brazil',
+    'Rio de Janeiro, Brazil',
+    'Buenos Aires, Argentina',
+    'Santiago, Chile',
+    'Bogotá, Colombia',
+    'Lima, Peru',
+    'Sydney, Australia',
+    'Melbourne, Australia',
+    'Brisbane, Australia',
+    'Perth, Australia',
+    'Auckland, New Zealand',
+    'Cape Town, South Africa',
+    'Johannesburg, South Africa',
+    'Nairobi, Kenya',
+    'Lagos, Nigeria',
+    'Cairo, Egypt',
+    'Casablanca, Morocco',
+    'Accra, Ghana',
   ];
 
-  static const _institutions = <String>[
+  /// Well-known institutions across regions. These are autocomplete hints,
+  /// not a restriction on what a user may enter.
+  static const _worldInstitutions = <String>[
     'Gujarat Technological University',
     'Gujarat University',
     'Nirma University',
@@ -139,12 +340,85 @@ class SuggestionService {
     'Indian Institute of Technology Bombay',
     'Indian Institute of Technology Delhi',
     'Indian Institute of Technology Madras',
+    'Indian Institute of Technology Kanpur',
+    'Indian Institute of Technology Kharagpur',
+    'Indian Institute of Technology Roorkee',
     'Indian Institute of Technology Gandhinagar',
+    'Indian Institute of Science',
     'National Institute of Technology Surat',
+    'National Institute of Technology Tiruchirappalli',
+    'Delhi University',
     'University of Mumbai',
     'Savitribai Phule Pune University',
     'Anna University',
     'Visvesvaraya Technological University',
+    'Jawaharlal Nehru Technological University',
+    'University of Oxford',
+    'University of Cambridge',
+    'Imperial College London',
+    'University College London',
+    'King\'s College London',
+    'London School of Economics and Political Science',
+    'University of Edinburgh',
+    'University of Manchester',
+    'University of Toronto',
+    'University of British Columbia',
+    'McGill University',
+    'University of Waterloo',
+    'Harvard University',
+    'Stanford University',
+    'Massachusetts Institute of Technology (MIT)',
+    'California Institute of Technology (Caltech)',
+    'University of California, Berkeley',
+    'University of California, Los Angeles',
+    'Carnegie Mellon University',
+    'Princeton University',
+    'Yale University',
+    'Columbia University',
+    'Cornell University',
+    'University of Michigan',
+    'University of Washington',
+    'University of Texas at Austin',
+    'National University of Singapore',
+    'Nanyang Technological University, Singapore',
+    'University of Tokyo',
+    'Kyoto University',
+    'Seoul National University',
+    'KAIST',
+    'Tsinghua University',
+    'Peking University',
+    'University of Hong Kong',
+    'Chinese University of Hong Kong',
+    'University of Melbourne',
+    'University of Sydney',
+    'Australian National University',
+    'University of New South Wales',
+    'Monash University',
+    'University of Auckland',
+    'Technical University of Munich',
+    'Heidelberg University',
+    'Ludwig Maximilian University of Munich',
+    'ETH Zurich',
+    'EPFL',
+    'University of Amsterdam',
+    'Delft University of Technology',
+    'University of Copenhagen',
+    'Stockholm University',
+    'Sorbonne University',
+    'École Polytechnique',
+    'University of Paris',
+    'University of Bologna',
+    'Sapienza University of Rome',
+    'University of Barcelona',
+    'Complutense University of Madrid',
+    'Trinity College Dublin',
+    'University of Vienna',
+    'University of Cape Town',
+    'University of the Witwatersrand',
+    'American University of Beirut',
+    'King Saud University',
+    'Qatar University',
+    'United Arab Emirates University',
   ];
 
   static const _companies = <String>[

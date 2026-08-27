@@ -534,8 +534,21 @@ class PdfGenerator {
             pw.Text(e.school, style: pw.TextStyle(fontSize: 9 * t.fontScale, color: text)),
             pw.Row(
               children: [
-                pw.Expanded(child: pw.Text(e.degree, style: pw.TextStyle(fontSize: 9.2 * t.fontScale, fontWeight: pw.FontWeight.bold, color: text))),
-                if (e.years.isNotEmpty) pw.Text(e.years, style: pw.TextStyle(fontSize: 8.4 * t.fontScale, color: muted)),
+                pw.Expanded(
+                  child: pw.Text(
+                    e.course.isEmpty ? e.degree : '${e.degree} — ${e.course}',
+                    style: pw.TextStyle(
+                      fontSize: 9.2 * t.fontScale,
+                      fontWeight: pw.FontWeight.bold,
+                      color: text,
+                    ),
+                  ),
+                ),
+                if (e.years.isNotEmpty)
+                  pw.Text(
+                    e.years,
+                    style: pw.TextStyle(fontSize: 8.4 * t.fontScale, color: muted),
+                  ),
               ],
             ),
           ],

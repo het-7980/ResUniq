@@ -169,12 +169,21 @@ class FormFieldService {
       order: 21,
     ),
     FormFieldDefinition(
+      id: 'education.course',
+      section: 'Education',
+      fieldKey: 'education.course',
+      label: 'Course / Major / Specialization',
+      placeholder: 'e.g. Computer Science and Engineering (CSE)',
+      required: true,
+      order: 22,
+    ),
+    FormFieldDefinition(
       id: 'education.years',
       section: 'Education',
       fieldKey: 'education.years',
       label: 'Years (e.g. 2020 - 2024)',
       required: true,
-      order: 22,
+      order: 23,
     ),
     FormFieldDefinition(
       id: 'experience.role',

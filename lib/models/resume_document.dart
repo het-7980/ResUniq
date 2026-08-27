@@ -95,30 +95,48 @@ class EducationEntry {
   final String id;
   final String school;
   final String degree;
+
+  /// The subject, branch, major or specialization within the degree.
+  /// Examples: Computer Science and Engineering (CSE), Finance, Biology.
+  final String course;
   final String years;
 
   EducationEntry({
     String? id,
     this.school = '',
     this.degree = '',
+    this.course = '',
     this.years = '',
   }) : id = id ?? _uuid.v4();
 
-  EducationEntry copyWith({String? school, String? degree, String? years}) =>
+  EducationEntry copyWith({
+    String? school,
+    String? degree,
+    String? course,
+    String? years,
+  }) =>
       EducationEntry(
         id: id,
         school: school ?? this.school,
         degree: degree ?? this.degree,
+        course: course ?? this.course,
         years: years ?? this.years,
       );
 
-  Map<String, dynamic> toMap() =>
-      {'id': id, 'school': school, 'degree': degree, 'years': years};
+  Map<String, dynamic> toMap() => {
+        'id': id,
+        'school': school,
+        'degree': degree,
+        'course': course,
+        'years': years,
+      };
 
   factory EducationEntry.fromMap(Map<String, dynamic> map) => EducationEntry(
         id: map['id'],
         school: map['school'] ?? '',
         degree: map['degree'] ?? '',
+        // Old resumes do not contain this key, so they remain fully compatible.
+        course: map['course'] ?? map['specialization'] ?? '',
         years: map['years'] ?? '',
       );
 }
