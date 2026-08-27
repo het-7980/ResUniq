@@ -144,6 +144,19 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
         const SnackBar(content: Text('Profile updated successfully.')),
       );
       Navigator.of(context).pop(true);
+    } on StateError catch (e) {
+      if (!mounted) return;
+      final message = e.message;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            message.isNotEmpty
+                ? message
+                : 'Profile picture is too large. Please select an image under 300 KB.',
+          ),
+          duration: const Duration(seconds: 4),
+        ),
+      );
     } on FirebaseException catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
