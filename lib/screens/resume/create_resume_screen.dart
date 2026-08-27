@@ -675,7 +675,6 @@ class _StepForm extends StatelessWidget {
         _ => field.multiline ? TextInputType.multiline : TextInputType.text,
       },
       validator: _validator(field),
-      suggestionFieldId: field.id,
       onChanged: onChanged,
     );
   }
@@ -874,7 +873,6 @@ class _StepForm extends StatelessWidget {
             ? const SizedBox.shrink()
             : ChipEntryField(
                 hint: '${field.label}: add an item and press +',
-                suggestionFieldId: field.id,
                 values: draft.skills,
                 onAdd: form.addSkill,
                 onRemoveAt: form.removeSkillAt,
@@ -977,7 +975,6 @@ class _StepForm extends StatelessWidget {
             ? const SizedBox.shrink()
             : ChipEntryField(
                 hint: '${field.label}: add an item and press +',
-                suggestionFieldId: field.id,
                 values: draft.languages,
                 onAdd: form.addLanguage,
                 onRemoveAt: form.removeLanguageAt,
@@ -989,7 +986,6 @@ class _StepForm extends StatelessWidget {
             ? const SizedBox.shrink()
             : ChipEntryField(
                 hint: '${field.label}: add an item and press +',
-                suggestionFieldId: field.id,
                 values: draft.interests,
                 onAdd: form.addInterest,
                 onRemoveAt: form.removeInterestAt,

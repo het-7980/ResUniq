@@ -18,14 +18,8 @@ library;
 
 import 'package:flutter/material.dart';
 import '../theme/app_theme.dart';
-import '../services/suggestion_service.dart';
 
 /// A labeled text field used throughout the wizard forms.
-///
-/// When [suggestionFieldId] is configured in [SuggestionService], matching
-/// values appear below the field. Flutter's Autocomplete widget provides
-/// desktop/web keyboard navigation: Up/Down changes the highlighted option and
-/// Enter selects it. Touch/click selection works on all platforms.
 class LabeledField extends StatelessWidget {
   final String label;
   final String initialValue;
@@ -34,7 +28,6 @@ class LabeledField extends StatelessWidget {
   final TextInputType? keyboardType;
   final bool requiredField;
   final String? Function(String?)? validator;
-  final String? suggestionFieldId;
 
   const LabeledField({
     super.key,
@@ -45,98 +38,10 @@ class LabeledField extends StatelessWidget {
     this.keyboardType,
     this.requiredField = false,
     this.validator,
-    this.suggestionFieldId,
   });
 
   @override
   Widget build(BuildContext context) {
-    final suggestionId = suggestionFieldId;
-    final canSuggest = suggestionId != null && maxLines == 1;
-
-    if (!canSuggest) return _plainField();
-
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 14),
-      child: Autocomplete<String>(
-        initialValue: TextEditingValue(text: initialValue),
-        optionsBuilder: (value) =>
-            SuggestionService.suggestionsFor(suggestionId, value.text),
-        onSelected: onChanged,
-        fieldViewBuilder: (
-          context,
-          controller,
-          focusNode,
-          onFieldSubmitted,
-        ) {
-          return TextFormField(
-            controller: controller,
-            focusNode: focusNode,
-            maxLines: maxLines,
-            keyboardType: keyboardType,
-            onChanged: (value) => onChanged(value.trim()),
-            onFieldSubmitted: (_) => onFieldSubmitted(),
-            validator: _validate,
-            autovalidateMode: AutovalidateMode.onUserInteraction,
-            decoration: _decoration(),
-          );
-        },
-        optionsViewBuilder: (context, onSelected, options) {
-          return Align(
-            alignment: Alignment.topLeft,
-            child: Material(
-              elevation: 8,
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(AppRadius.md),
-              child: ConstrainedBox(
-                constraints: const BoxConstraints(maxHeight: 260),
-                child: ListView.builder(
-                  padding: const EdgeInsets.symmetric(vertical: 6),
-                  shrinkWrap: true,
-                  itemCount: options.length,
-                  itemBuilder: (context, index) {
-                    final option = options.elementAt(index);
-                    return InkWell(
-                      onTap: () => onSelected(option),
-                      child: Builder(
-                        builder: (context) {
-                          final highlighted =
-                              AutocompleteHighlightedOption.of(context) == index;
-                          return Container(
-                            color: highlighted
-                                ? AppColors.primaryTint
-                                : Colors.transparent,
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 14,
-                              vertical: 12,
-                            ),
-                            child: Row(
-                              children: [
-                                Icon(
-                                  Icons.search_rounded,
-                                  size: 19,
-                                  color: highlighted
-                                      ? AppColors.primary
-                                      : AppColors.textSecondary,
-                                ),
-                                const SizedBox(width: 12),
-                                Expanded(child: Text(option)),
-                              ],
-                            ),
-                          );
-                        },
-                      ),
-                    );
-                  },
-                ),
-              ),
-            ),
-          );
-        },
-      ),
-    );
-  }
-
-  Widget _plainField() {
     return Padding(
       padding: const EdgeInsets.only(bottom: 14),
       child: TextFormField(
@@ -144,23 +49,21 @@ class LabeledField extends StatelessWidget {
         maxLines: maxLines,
         keyboardType: keyboardType,
         onChanged: (value) => onChanged(value.trim()),
-        validator: _validate,
+        validator: (value) {
+          final trimmed = value?.trim() ?? '';
+          if (requiredField && trimmed.isEmpty) {
+            return 'Please enter $label';
+          }
+          return validator?.call(trimmed);
+        },
         autovalidateMode: AutovalidateMode.onUserInteraction,
-        decoration: _decoration(),
+        decoration: InputDecoration(
+          hintText: label,
+          prefixIcon: const Icon(Icons.edit_outlined, size: 19),
+        ),
       ),
     );
   }
-
-  String? _validate(String? value) {
-    final trimmed = value?.trim() ?? '';
-    if (requiredField && trimmed.isEmpty) return 'Please enter $label';
-    return validator?.call(trimmed);
-  }
-
-  InputDecoration _decoration() => InputDecoration(
-        hintText: label,
-        prefixIcon: const Icon(Icons.edit_outlined, size: 19),
-      );
 }
 
 /// A removable card wrapping one repeatable entry (an education row, an
@@ -242,7 +145,6 @@ class ChipEntryField extends StatefulWidget {
   final List<String> values;
   final ValueChanged<String> onAdd;
   final ValueChanged<int> onRemoveAt;
-  final String? suggestionFieldId;
 
   const ChipEntryField({
     super.key,
@@ -250,7 +152,6 @@ class ChipEntryField extends StatefulWidget {
     required this.values,
     required this.onAdd,
     required this.onRemoveAt,
-    this.suggestionFieldId,
   });
 
   @override
@@ -261,21 +162,12 @@ class ChipEntryField extends StatefulWidget {
 /// It is kept separate so other files can reuse it without duplicating logic.
 class _ChipEntryFieldState extends State<ChipEntryField> {
   final _controller = TextEditingController();
-  final _focusNode = FocusNode();
 
   void _submit() {
     final value = _controller.text.trim();
     if (value.isEmpty) return;
     widget.onAdd(value);
     _controller.clear();
-    _focusNode.requestFocus();
-  }
-
-  @override
-  void dispose() {
-    _controller.dispose();
-    _focusNode.dispose();
-    super.dispose();
   }
 
   @override
@@ -286,78 +178,11 @@ class _ChipEntryFieldState extends State<ChipEntryField> {
         Row(
           children: [
             Expanded(
-              child: widget.suggestionFieldId == null
-                  ? TextField(
-                      controller: _controller,
-                      focusNode: _focusNode,
-                      decoration: InputDecoration(hintText: widget.hint),
-                      onSubmitted: (_) => _submit(),
-                    )
-                  : RawAutocomplete<String>(
-                      textEditingController: _controller,
-                      focusNode: _focusNode,
-                      optionsBuilder: (value) => SuggestionService.suggestionsFor(
-                        widget.suggestionFieldId!,
-                        value.text,
-                      ),
-                      onSelected: (value) {
-                        widget.onAdd(value);
-                        _controller.clear();
-                        _focusNode.requestFocus();
-                      },
-                      fieldViewBuilder: (
-                        context,
-                        controller,
-                        focusNode,
-                        onFieldSubmitted,
-                      ) {
-                        return TextField(
-                          controller: controller,
-                          focusNode: focusNode,
-                          decoration: InputDecoration(hintText: widget.hint),
-                          onSubmitted: (_) => onFieldSubmitted(),
-                        );
-                      },
-                      optionsViewBuilder: (context, onSelected, options) {
-                        return Align(
-                          alignment: Alignment.topLeft,
-                          child: Material(
-                            elevation: 8,
-                            borderRadius: BorderRadius.circular(AppRadius.md),
-                            child: ConstrainedBox(
-                              constraints: const BoxConstraints(maxHeight: 240),
-                              child: ListView.builder(
-                                padding: const EdgeInsets.symmetric(vertical: 6),
-                                shrinkWrap: true,
-                                itemCount: options.length,
-                                itemBuilder: (context, index) {
-                                  final option = options.elementAt(index);
-                                  return InkWell(
-                                    onTap: () => onSelected(option),
-                                    child: Builder(
-                                      builder: (context) {
-                                        final highlighted =
-                                            AutocompleteHighlightedOption.of(context) == index;
-                                        return Container(
-                                          color: highlighted
-                                              ? AppColors.primaryTint
-                                              : Colors.transparent,
-                                          padding: const EdgeInsets.symmetric(
-                                            horizontal: 14,
-                                            vertical: 12,
-                                          ),
-                                          child: Text(option),
-                                        );
-                                      },
-                                    ),
-                                  );
-                                },
-                              ),
-                            ),
-                          ),
-                        );
-                      },
-                    ),
+              child: TextField(
+                controller: _controller,
+                decoration: InputDecoration(hintText: widget.hint),
+                onSubmitted: (_) => _submit(),
+              ),
             ),
             const SizedBox(width: 10),
             SizedBox(
