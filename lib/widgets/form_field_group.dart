@@ -48,6 +48,16 @@ class LabeledField extends StatelessWidget {
     this.suggestionFieldId,
   });
 
+  /// Android's on-screen keyboard can cover an autocomplete menu that is
+  /// opened below a focused field. Opening the menu upward on Android keeps
+  /// suggestions visible above the keyboard. Desktop/web keeps the familiar
+  /// downward dropdown.
+  OptionsViewOpenDirection _suggestionDirection(BuildContext context) {
+    return Theme.of(context).platform == TargetPlatform.android
+        ? OptionsViewOpenDirection.up
+        : OptionsViewOpenDirection.down;
+  }
+
   @override
   Widget build(BuildContext context) {
     final suggestionId = suggestionFieldId;
@@ -62,6 +72,7 @@ class LabeledField extends StatelessWidget {
         optionsBuilder: (value) =>
             SuggestionService.suggestionsFor(suggestionId, value.text),
         onSelected: onChanged,
+        optionsViewOpenDirection: _suggestionDirection(context),
         fieldViewBuilder: (
           context,
           controller,
@@ -88,7 +99,10 @@ class LabeledField extends StatelessWidget {
               color: Colors.white,
               borderRadius: BorderRadius.circular(AppRadius.md),
               child: ConstrainedBox(
-                constraints: const BoxConstraints(maxHeight: 260),
+                constraints: const BoxConstraints(
+                  minWidth: 280,
+                  maxHeight: 260,
+                ),
                 child: ListView.builder(
                   padding: const EdgeInsets.symmetric(vertical: 6),
                   shrinkWrap: true,
@@ -278,6 +292,12 @@ class _ChipEntryFieldState extends State<ChipEntryField> {
     super.dispose();
   }
 
+  OptionsViewOpenDirection _suggestionDirection(BuildContext context) {
+    return Theme.of(context).platform == TargetPlatform.android
+        ? OptionsViewOpenDirection.up
+        : OptionsViewOpenDirection.down;
+  }
+
   @override
   Widget build(BuildContext context) {
     return Column(
@@ -305,6 +325,7 @@ class _ChipEntryFieldState extends State<ChipEntryField> {
                         _controller.clear();
                         _focusNode.requestFocus();
                       },
+                      optionsViewOpenDirection: _suggestionDirection(context),
                       fieldViewBuilder: (
                         context,
                         controller,
@@ -325,7 +346,10 @@ class _ChipEntryFieldState extends State<ChipEntryField> {
                             elevation: 8,
                             borderRadius: BorderRadius.circular(AppRadius.md),
                             child: ConstrainedBox(
-                              constraints: const BoxConstraints(maxHeight: 240),
+                              constraints: const BoxConstraints(
+                                minWidth: 220,
+                                maxHeight: 240,
+                              ),
                               child: ListView.builder(
                                 padding: const EdgeInsets.symmetric(vertical: 6),
                                 shrinkWrap: true,
