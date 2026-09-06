@@ -325,6 +325,7 @@ class PdfGenerator {
       'interests',
       'references',
       'customFields',
+      'userCustomSections',
     ];
 
     final result = <String>[];
@@ -470,6 +471,28 @@ class PdfGenerator {
                   ),
                 );
               }).toList(),
+            );
+          }
+          break;
+        case 'userCustomSections':
+          final sections = resume.userCustomSections.where((section) =>
+              section.title.trim().isNotEmpty && section.content.trim().isNotEmpty).toList();
+          if (sections.isNotEmpty) {
+            title = 'Additional Information';
+            body = pw.Column(
+              crossAxisAlignment: pw.CrossAxisAlignment.start,
+              children: sections.map((section) => pw.Padding(
+                padding: const pw.EdgeInsets.only(bottom: 7),
+                child: pw.Column(
+                  crossAxisAlignment: pw.CrossAxisAlignment.start,
+                  children: [
+                    pw.Text(section.title, style: pw.TextStyle(
+                      fontSize: 9.5 * template.fontScale,
+                      fontWeight: pw.FontWeight.bold, color: text)),
+                    _bodyText(section.content, text, template),
+                  ],
+                ),
+              )).toList(),
             );
           }
           break;

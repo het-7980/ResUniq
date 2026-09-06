@@ -132,6 +132,19 @@ class ResumeFormProvider extends ChangeNotifier {
   void removeReference(String id) => _update((d) =>
       d.copyWith(references: d.references.where((e) => e.id != id).toList()));
 
+  void addUserCustomSection() => _update((d) => d.copyWith(
+        userCustomSections: [...d.userCustomSections, UserCustomSection()],
+      ));
+
+  void updateUserCustomSection(String id, UserCustomSection Function(UserCustomSection) updater) =>
+      _update((d) => d.copyWith(
+        userCustomSections: d.userCustomSections.map((e) => e.id == id ? updater(e) : e).toList(),
+      ));
+
+  void removeUserCustomSection(String id) => _update((d) => d.copyWith(
+        userCustomSections: d.userCustomSections.where((e) => e.id != id).toList(),
+      ));
+
   // ---- Simple tag/chip sections (skills, languages, interests) ----------
 
   void addSkill(String value) {

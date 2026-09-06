@@ -111,6 +111,11 @@ const _sections = [
     Icons.people_outline_rounded,
     'People who can vouch for you.',
   ),
+  _StepSection(
+    'Additional Information',
+    Icons.tune_rounded,
+    'Extra fields configured by your administrator.',
+  ),
 ];
 
 /// _WizardBody is responsible for this part of the ResUniq application.
@@ -1049,7 +1054,62 @@ class _StepForm extends StatelessWidget {
                 label: 'Add Reference',
                 onPressed: form.addReference,
               ),
-            ..._customFieldWidgets(context),
+          ],
+        );
+
+      case 9:
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            if (_customFields.isNotEmpty) ...[
+              Text('Additional Information', style: Theme.of(context).textTheme.titleLarge),
+              const SizedBox(height: 8),
+              for (final field in _customFields)
+                _fieldWidget(
+                  field: field,
+                  initialValue: form.draft.customFields[field.id] ?? '',
+                  onChanged: (value) => form.setCustomField(field.id, value, label: field.label),
+                ),
+              const SizedBox(height: 28),
+            ],
+            Row(children: [
+              Expanded(child: Text('Custom Sections', style: Theme.of(context).textTheme.titleLarge)),
+              IconButton(onPressed: form.addUserCustomSection, icon: const Icon(Icons.add_circle_outline)),
+            ]),
+            const SizedBox(height: 6),
+            Text('Add Publications, Awards, Patents, Research, or anything else you want in your resume.',
+              style: Theme.of(context).textTheme.bodyMedium),
+            const SizedBox(height: 16),
+            if (draft.userCustomSections.isEmpty)
+              OutlinedButton.icon(
+                onPressed: form.addUserCustomSection,
+                icon: const Icon(Icons.add),
+                label: const Text('Add Custom Section'),
+              ),
+            for (final section in draft.userCustomSections) ...[
+              const SizedBox(height: 12),
+              EntryCard(
+                onRemove: () => form.removeUserCustomSection(section.id),
+                children: [
+                  LabeledField(
+                    label: 'Section Name',
+                    initialValue: section.title,
+                    requiredField: true,
+                    onChanged: (v) => form.updateUserCustomSection(section.id, (x) => x.copyWith(title: v)),
+                  ),
+                  LabeledField(
+                    label: 'Content',
+                    initialValue: section.content,
+                    requiredField: true,
+                    maxLines: 6,
+                    keyboardType: TextInputType.multiline,
+                    onChanged: (v) => form.updateUserCustomSection(section.id, (x) => x.copyWith(content: v)),
+                  ),
+                ],
+              ),
+            ],
+            if (draft.userCustomSections.isNotEmpty)
+              AddEntryButton(label: 'Add Another Custom Section', onPressed: form.addUserCustomSection),
           ],
         );
 

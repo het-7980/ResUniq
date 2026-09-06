@@ -292,6 +292,19 @@ class ReferenceEntry {
       );
 }
 
+class UserCustomSection {
+  final String id;
+  final String title;
+  final String content;
+  UserCustomSection({String? id, this.title = '', this.content = ''})
+      : id = id ?? _uuid.v4();
+  UserCustomSection copyWith({String? title, String? content}) =>
+      UserCustomSection(id: id, title: title ?? this.title, content: content ?? this.content);
+  Map<String, dynamic> toMap() => {'id': id, 'title': title, 'content': content};
+  factory UserCustomSection.fromMap(Map<String, dynamic> map) => UserCustomSection(
+      id: map['id'], title: map['title'] ?? '', content: map['content'] ?? '');
+}
+
 /// ---------------------------------------------------------------------
 /// Root document.
 ///
@@ -322,6 +335,7 @@ class ResumeDocument {
   final List<String> languages;
   final List<String> interests;
   final List<ReferenceEntry> references;
+  final List<UserCustomSection> userCustomSections;
   /// Values for administrator-created fields. Keys are FormFieldDefinition ids.
   final Map<String, String> customFields;
   final Map<String, String> customFieldLabels;
@@ -343,6 +357,7 @@ class ResumeDocument {
     List<String>? languages,
     List<String>? interests,
     List<ReferenceEntry>? references,
+    List<UserCustomSection>? userCustomSections,
     Map<String, String>? customFields,
     Map<String, String>? customFieldLabels,
     DateTime? createdAt,
@@ -356,6 +371,7 @@ class ResumeDocument {
         languages = languages ?? [],
         interests = interests ?? [],
         references = references ?? [],
+        userCustomSections = userCustomSections ?? [],
         customFields = customFields ?? {},
         customFieldLabels = customFieldLabels ?? {},
         createdAt = createdAt ?? DateTime.now(),
@@ -397,6 +413,7 @@ class ResumeDocument {
     List<String>? languages,
     List<String>? interests,
     List<ReferenceEntry>? references,
+    List<UserCustomSection>? userCustomSections,
     Map<String, String>? customFields,
     Map<String, String>? customFieldLabels,
     DateTime? updatedAt,
@@ -417,6 +434,7 @@ class ResumeDocument {
       languages: languages ?? this.languages,
       interests: interests ?? this.interests,
       references: references ?? this.references,
+      userCustomSections: userCustomSections ?? this.userCustomSections,
       customFields: customFields ?? this.customFields,
       customFieldLabels: customFieldLabels ?? this.customFieldLabels,
       createdAt: createdAt,
@@ -444,6 +462,7 @@ class ResumeDocument {
         'languages': languages,
         'interests': interests,
         'references': references.map((e) => e.toMap()).toList(),
+        'userCustomSections': userCustomSections.map((e) => e.toMap()).toList(),
         'customFields': customFields,
         'customFieldLabels': customFieldLabels,
         'createdAt': createdAt.toIso8601String(),
@@ -510,6 +529,7 @@ class ResumeDocument {
       languages: List<String>.from(map['languages'] ?? const []),
       interests: List<String>.from(map['interests'] ?? const []),
       references: listOf('references', ReferenceEntry.fromMap),
+      userCustomSections: listOf('userCustomSections', UserCustomSection.fromMap),
       customFields: Map<String, String>.from(
         (map['customFields'] as Map?)?.map(
               (key, value) => MapEntry(key.toString(), value?.toString() ?? ''),
