@@ -48,11 +48,22 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
     final confirmed = await showDialog<bool>(
       context: context,
+      useRootNavigator: true,
       builder: (dialogContext) => AlertDialog(
-        title: const Text('Delete account?'),
+        insetPadding: const EdgeInsets.symmetric(
+          horizontal: 24,
+          vertical: 24,
+        ),
+        icon: Icon(
+          Icons.delete_forever_rounded,
+          color: Theme.of(dialogContext).colorScheme.error,
+          size: 34,
+        ),
+        title: const Text('Delete Account'),
         content: const Text(
           'This will permanently delete your profile and all of your '
           'resumes. This action cannot be undone.',
+          textAlign: TextAlign.center,
         ),
         actions: [
           TextButton(
@@ -65,7 +76,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
               foregroundColor: Colors.white,
             ),
             onPressed: () => Navigator.pop(dialogContext, true),
-            child: const Text('Delete'),
+            child: const Text('Delete Account'),
           ),
         ],
       ),
@@ -93,33 +104,126 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
       password = await showDialog<String>(
         context: context,
-        builder: (dialogContext) => AlertDialog(
-          title: const Text('Confirm your password'),
-          content: TextField(
-            controller: passwordController,
-            obscureText: true,
-            autofocus: true,
-            decoration: const InputDecoration(
-              labelText: 'Password',
-              prefixIcon: Icon(Icons.lock_outline_rounded),
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(dialogContext),
-              child: const Text('Cancel'),
-            ),
-            FilledButton(
-              onPressed: () {
-                final value = passwordController.text.trim();
-                if (value.isNotEmpty) {
-                  Navigator.pop(dialogContext, value);
-                }
-              },
-              child: const Text('Continue'),
-            ),
-          ],
-        ),
+        useRootNavigator: true,
+        builder: (dialogContext) {
+          String error = '';
+          return StatefulBuilder(
+            builder: (dialogContext, setDialogState) {
+              void showError(String message) {
+              setDialogState(() => error = message);
+            }
+
+            return AlertDialog(
+              insetPadding: const EdgeInsets.symmetric(
+                horizontal: 24,
+                vertical: 24,
+              ),
+              icon: Icon(
+                Icons.lock_outline_rounded,
+                color: Theme.of(dialogContext).colorScheme.primary,
+                size: 34,
+              ),
+              title: const Text('Confirm Account Deletion'),
+              content: SingleChildScrollView(
+                keyboardDismissBehavior:
+                    ScrollViewKeyboardDismissBehavior.onDrag,
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 430),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Align(
+                        alignment: Alignment.centerLeft,
+                        child: Text(
+                          'Enter your current password to continue.',
+                        ),
+                      ),
+                      const SizedBox(height: 14),
+                      TextField(
+                        controller: passwordController,
+                        obscureText: true,
+                        autofocus: true,
+                        textInputAction: TextInputAction.done,
+                        decoration: const InputDecoration(
+                          labelText: 'Current password',
+                          prefixIcon: Icon(Icons.lock_outline_rounded),
+                        ),
+                      ),
+                      if (error.isNotEmpty) ...[
+                        const SizedBox(height: 12),
+                        Container(
+                          width: double.infinity,
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 12,
+                            vertical: 10,
+                          ),
+                          decoration: BoxDecoration(
+                            color: Theme.of(dialogContext)
+                                .colorScheme
+                                .errorContainer,
+                            borderRadius: BorderRadius.circular(10),
+                            border: Border.all(
+                              color: Theme.of(dialogContext)
+                                  .colorScheme
+                                  .error
+                                  .withValues(alpha: 0.35),
+                            ),
+                          ),
+                          child: Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Icon(
+                                Icons.error_outline_rounded,
+                                size: 20,
+                                color: Theme.of(dialogContext)
+                                    .colorScheme
+                                    .onErrorContainer,
+                              ),
+                              const SizedBox(width: 9),
+                              Expanded(
+                                child: Text(
+                                  error,
+                                  style: TextStyle(
+                                    color: Theme.of(dialogContext)
+                                        .colorScheme
+                                        .onErrorContainer,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(dialogContext),
+                  child: const Text('Cancel'),
+                ),
+                FilledButton(
+                  style: FilledButton.styleFrom(
+                    backgroundColor: AppColors.error,
+                    foregroundColor: Colors.white,
+                  ),
+                  onPressed: () {
+                    final value = passwordController.text.trim();
+                    if (value.isEmpty) {
+                      showError('Please enter your current password.');
+                      return;
+                    }
+                    Navigator.pop(dialogContext, value);
+                  },
+                  child: const Text('Continue'),
+                ),
+              ],
+            );
+            },
+          );
+        },
       );
 
       passwordController.dispose();
@@ -132,13 +236,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
       // Google users do not have an app password. The deletion service will
       // reauthenticate them with a fresh Google credential instead.
     } else {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text(
-            'This account uses an unsupported sign-in method. '
-            'Please sign in again before deleting it.',
-          ),
-        ),
+      await _showDeleteAccountErrorDialog(
+        context,
+        'This account uses an unsupported sign-in method. '
+        'Please sign in again before deleting it.',
       );
       if (mounted) setState(() => _isDeleting = false);
       return;
@@ -244,17 +345,16 @@ class _ProfileScreenState extends State<ProfileScreen> {
           _ => e.message ?? 'Unable to delete the account.',
         };
 
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(message)),
-        );
+        await _showDeleteAccountErrorDialog(context, message);
       }
     } catch (e) {
       await closeProgressDialog();
       disposeProgress();
 
       if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Unable to delete account: $e')),
+        await _showDeleteAccountErrorDialog(
+          context,
+          'Unable to delete account. Please try again.',
         );
       }
     } finally {
@@ -263,6 +363,44 @@ class _ProfileScreenState extends State<ProfileScreen> {
         setState(() => _isDeleting = false);
       }
     }
+  }
+
+  Future<void> _showDeleteAccountErrorDialog(
+    BuildContext context,
+    String message,
+  ) async {
+    if (!context.mounted) return;
+
+    await showDialog<void>(
+      context: context,
+      useRootNavigator: true,
+      builder: (errorContext) => AlertDialog(
+        insetPadding: const EdgeInsets.symmetric(
+          horizontal: 24,
+          vertical: 24,
+        ),
+        icon: Icon(
+          Icons.error_outline_rounded,
+          color: Theme.of(errorContext).colorScheme.error,
+          size: 34,
+        ),
+        title: const Text('Unable to Delete Account'),
+        content: Text(
+          message,
+          textAlign: TextAlign.center,
+        ),
+        actions: [
+          FilledButton(
+            style: FilledButton.styleFrom(
+              backgroundColor: Theme.of(errorContext).colorScheme.primary,
+              foregroundColor: Colors.white,
+            ),
+            onPressed: () => Navigator.pop(errorContext),
+            child: const Text('OK'),
+          ),
+        ],
+      ),
+    );
   }
 
   Future<void> _showPasswordErrorDialog(
