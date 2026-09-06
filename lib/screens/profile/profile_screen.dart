@@ -265,114 +265,200 @@ class _ProfileScreenState extends State<ProfileScreen> {
     }
   }
 
+  Future<void> _showPasswordErrorDialog(
+    BuildContext context,
+    String message,
+  ) async {
+    if (!context.mounted) return;
+
+    await showDialog<void>(
+      context: context,
+      useRootNavigator: true,
+      builder: (errorContext) => AlertDialog(
+        icon: Icon(
+          Icons.error_outline_rounded,
+          color: Theme.of(errorContext).colorScheme.error,
+          size: 34,
+        ),
+        title: const Text('Unable to change password'),
+        content: Text(
+          message,
+          textAlign: TextAlign.center,
+        ),
+        actions: [
+          FilledButton(
+            onPressed: () => Navigator.pop(errorContext),
+            child: const Text('OK'),
+          ),
+        ],
+      ),
+    );
+  }
+
   Future<void> _changePassword(BuildContext context) async {
     final currentPasswordController = TextEditingController();
     final newPasswordController = TextEditingController();
     final confirmPasswordController = TextEditingController();
 
+    String validationError = '';
+
     final passwords = await showDialog<List<String>>(
       context: context,
-      builder: (dialogContext) => AlertDialog(
-        title: const Text('Change Password'),
-        content: SingleChildScrollView(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              TextField(
-                controller: currentPasswordController,
-                obscureText: true,
-                autofocus: true,
-                decoration: const InputDecoration(
-                  labelText: 'Current password',
-                  prefixIcon: Icon(Icons.lock_outline_rounded),
+      useRootNavigator: true,
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (dialogContext, setDialogState) {
+          // Keep the error text inside the dialog instead of using a
+          // SnackBar. A SnackBar is attached to the page Scaffold and can
+          // appear behind/under an AlertDialog, especially on Android.
+          void showValidationError(String message) {
+            setDialogState(() => validationError = message);
+          }
+
+          return AlertDialog(
+            title: const Text('Change Password'),
+            insetPadding: const EdgeInsets.symmetric(
+              horizontal: 24,
+              vertical: 24,
+            ),
+            content: SingleChildScrollView(
+              keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 430),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    TextField(
+                      controller: currentPasswordController,
+                      obscureText: true,
+                      autofocus: true,
+                      textInputAction: TextInputAction.next,
+                      decoration: const InputDecoration(
+                        labelText: 'Current password',
+                        prefixIcon: Icon(Icons.lock_outline_rounded),
+                      ),
+                    ),
+                    const SizedBox(height: 14),
+                    TextField(
+                      controller: newPasswordController,
+                      obscureText: true,
+                      textInputAction: TextInputAction.next,
+                      decoration: const InputDecoration(
+                        labelText: 'New password',
+                        prefixIcon: Icon(Icons.lock_reset_rounded),
+                      ),
+                    ),
+                    const SizedBox(height: 14),
+                    TextField(
+                      controller: confirmPasswordController,
+                      obscureText: true,
+                      textInputAction: TextInputAction.done,
+                      decoration: const InputDecoration(
+                        labelText: 'Confirm new password',
+                        prefixIcon: Icon(Icons.verified_user_outlined),
+                      ),
+                    ),
+                    if (validationError.isNotEmpty) ...[
+                      const SizedBox(height: 12),
+                      Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 10,
+                        ),
+                        decoration: BoxDecoration(
+                          color: Theme.of(dialogContext)
+                              .colorScheme
+                              .errorContainer,
+                          borderRadius: BorderRadius.circular(10),
+                          border: Border.all(
+                            color: Theme.of(dialogContext)
+                                .colorScheme
+                                .error
+                                .withValues(alpha: 0.35),
+                          ),
+                        ),
+                        child: Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Icon(
+                              Icons.error_outline_rounded,
+                              size: 20,
+                              color: Theme.of(dialogContext)
+                                  .colorScheme
+                                  .onErrorContainer,
+                            ),
+                            const SizedBox(width: 9),
+                            Expanded(
+                              child: Text(
+                                validationError,
+                                style: TextStyle(
+                                  color: Theme.of(dialogContext)
+                                      .colorScheme
+                                      .onErrorContainer,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                    const SizedBox(height: 10),
+                    Align(
+                      alignment: Alignment.centerLeft,
+                      child: Text(
+                        'Use at least 6 characters.',
+                        style: Theme.of(dialogContext).textTheme.bodySmall,
+                      ),
+                    ),
+                  ],
                 ),
               ),
-              const SizedBox(height: 14),
-              TextField(
-                controller: newPasswordController,
-                obscureText: true,
-                decoration: const InputDecoration(
-                  labelText: 'New password',
-                  prefixIcon: Icon(Icons.lock_reset_rounded),
-                ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(dialogContext),
+                child: const Text('Cancel'),
               ),
-              const SizedBox(height: 14),
-              TextField(
-                controller: confirmPasswordController,
-                obscureText: true,
-                decoration: const InputDecoration(
-                  labelText: 'Confirm new password',
-                  prefixIcon: Icon(Icons.verified_user_outlined),
-                ),
-              ),
-              const SizedBox(height: 10),
-              Align(
-                alignment: Alignment.centerLeft,
-                child: Text(
-                  'Use at least 6 characters.',
-                  style: Theme.of(dialogContext).textTheme.bodySmall,
-                ),
+              FilledButton(
+                onPressed: () {
+                  final current = currentPasswordController.text.trim();
+                  final next = newPasswordController.text;
+                  final confirm = confirmPasswordController.text;
+
+                  if (current.isEmpty || next.isEmpty || confirm.isEmpty) {
+                    showValidationError('Please fill in all password fields.');
+                    return;
+                  }
+
+                  if (next.length < 6) {
+                    showValidationError(
+                      'New password must be at least 6 characters.',
+                    );
+                    return;
+                  }
+
+                  if (next != confirm) {
+                    showValidationError('New passwords do not match.');
+                    return;
+                  }
+
+                  if (current == next) {
+                    showValidationError(
+                      'New password must be different from the current password.',
+                    );
+                    return;
+                  }
+
+                  Navigator.pop(dialogContext, [current, next]);
+                },
+                child: const Text('Change Password'),
               ),
             ],
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(dialogContext),
-            child: const Text('Cancel'),
-          ),
-          FilledButton(
-            onPressed: () {
-              final current = currentPasswordController.text;
-              final next = newPasswordController.text;
-              final confirm = confirmPasswordController.text;
-
-              if (current.isEmpty || next.isEmpty || confirm.isEmpty) {
-                ScaffoldMessenger.of(dialogContext).showSnackBar(
-                  const SnackBar(
-                    content: Text('Please fill in all password fields.'),
-                  ),
-                );
-                return;
-              }
-
-              if (next.length < 6) {
-                ScaffoldMessenger.of(dialogContext).showSnackBar(
-                  const SnackBar(
-                    content: Text('New password must be at least 6 characters.'),
-                  ),
-                );
-                return;
-              }
-
-              if (next != confirm) {
-                ScaffoldMessenger.of(dialogContext).showSnackBar(
-                  const SnackBar(
-                    content: Text('New passwords do not match.'),
-                  ),
-                );
-                return;
-              }
-
-              if (current == next) {
-                ScaffoldMessenger.of(dialogContext).showSnackBar(
-                  const SnackBar(
-                    content: Text(
-                      'New password must be different from the current password.',
-                    ),
-                  ),
-                );
-                return;
-              }
-
-              Navigator.pop(dialogContext, [current, next]);
-            },
-            child: const Text('Change Password'),
-          ),
-        ],
+          );
+        },
       ),
     );
-
     currentPasswordController.dispose();
     newPasswordController.dispose();
     confirmPasswordController.dispose();
@@ -419,6 +505,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
       if (!context.mounted) return;
 
+      ScaffoldMessenger.of(context).hideCurrentSnackBar();
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Password changed successfully.')),
       );
@@ -444,9 +531,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
         _ => e.message ?? 'Unable to change the password.',
       };
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(message)),
-      );
+      await _showPasswordErrorDialog(context, message);
     } on StateError catch (e) {
       if (context.mounted) {
         Navigator.of(context, rootNavigator: true).pop();
@@ -455,9 +540,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
       if (!context.mounted) return;
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(e.message)),
-      );
+      await _showPasswordErrorDialog(context, e.message);
     } catch (e) {
       if (context.mounted) {
         Navigator.of(context, rootNavigator: true).pop();
@@ -466,8 +549,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
       if (!context.mounted) return;
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Unable to change the password: $e')),
+      await _showPasswordErrorDialog(
+        context,
+        'Unable to change the password: $e',
       );
     }
   }
