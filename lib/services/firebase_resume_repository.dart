@@ -113,6 +113,11 @@ class FirebaseResumeRepository implements ResumeRepository {
       languages: resume.languages,
       interests: resume.interests,
       references: resume.references,
+      // Preserve both admin-created dynamic fields and user-created sections
+      // when a resume is duplicated.
+      userCustomSections: resume.userCustomSections,
+      customFields: resume.customFields,
+      customFieldLabels: resume.customFieldLabels,
     );
 
     final data = duplicate.toMap();

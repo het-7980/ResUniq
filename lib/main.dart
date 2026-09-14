@@ -16,11 +16,15 @@
 /// ---------------------------------------------------------------------------
 library;
 
+import 'dart:ui';
+
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import 'package:firebase_core/firebase_core.dart';
+import 'package:firebase_crashlytics/firebase_crashlytics.dart';
+import 'package:flutter/foundation.dart';
 import 'firebase_options.dart';
 
 import 'providers/resume_list_provider.dart';
@@ -36,9 +40,35 @@ import 'services/resume_repository.dart';
 import 'services/user_repository.dart';
 import 'theme/app_theme.dart';
 
-void main() async {
+Future<void> _configureCrashReporting() async {
+  if (kIsWeb) return;
+
+  try {
+    await FirebaseCrashlytics.instance.setCrashlyticsCollectionEnabled(
+      !kDebugMode,
+    );
+
+    FlutterError.onError = (details) {
+      FirebaseCrashlytics.instance.recordFlutterFatalError(details);
+    };
+
+    PlatformDispatcher.instance.onError = (error, stack) {
+      FirebaseCrashlytics.instance.recordError(
+        error,
+        stack,
+        fatal: true,
+      );
+      return true;
+    };
+  } catch (_) {
+    // Crash reporting must never prevent the application from starting.
+  }
+}
+
+Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
+  await _configureCrashReporting();
 
   await GoogleAuthService.instance.initialize();
 
