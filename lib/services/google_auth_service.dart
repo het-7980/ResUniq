@@ -40,8 +40,11 @@ class GoogleAuthService {
   bool _initialized = false;
 
   Future<void> initialize() async {
-    if (_initialized || kIsWeb) return;
+    if (kIsWeb || _initialized) return;
 
+    // google_sign_in 7.x requires initialize() to be called exactly once
+    // before authenticate(). On Android, the plugin reads the OAuth client
+    // configuration from google-services.json.
     await _googleSignIn.initialize();
     _initialized = true;
   }
@@ -61,15 +64,41 @@ class GoogleAuthService {
       );
     }
 
-    late final GoogleSignInAccount googleUser;
     try {
-      googleUser = await _googleSignIn.authenticate().timeout(
+      // Firebase logout and Google logout are separate sessions. Clear the
+      // previously selected Google account before every interactive login so
+      // the account chooser is shown again.
+      await _googleSignIn.signOut();
+
+      final googleUser = await _googleSignIn.authenticate().timeout(
         const Duration(seconds: 60),
         onTimeout: () => throw FirebaseAuthException(
           code: 'google-sign-in-timeout',
           message: 'Google sign-in timed out. Please try again.',
         ),
       );
+
+      final googleAuth = googleUser.authentication;
+      final idToken = googleAuth.idToken;
+
+      if (idToken == null || idToken.isEmpty) {
+        throw FirebaseAuthException(
+          code: 'missing-google-id-token',
+          message:
+              'Google did not return an ID token. Check the Android Firebase '
+              'configuration, SHA-1/SHA-256 fingerprints, and OAuth client.',
+        );
+      }
+
+      final credential = GoogleAuthProvider.credential(idToken: idToken);
+
+      try {
+        return await _auth.signInWithCredential(credential);
+      } on FirebaseAuthException catch (e) {
+        // Keep Firebase's original error code/message so the UI can show
+        // something useful instead of hiding the real authentication error.
+        rethrow;
+      }
     } on GoogleSignInException catch (e) {
       if (e.code == GoogleSignInExceptionCode.canceled) {
         throw FirebaseAuthException(
@@ -77,23 +106,22 @@ class GoogleAuthService {
           message: 'Google sign-in was cancelled.',
         );
       }
+
+      if (e.code == GoogleSignInExceptionCode.clientConfigurationError) {
+        throw FirebaseAuthException(
+          code: 'google-client-configuration-error',
+          message:
+              'Google Sign-In is not configured correctly for this Android '
+              'app. Verify google-services.json, the Android package name, '
+              'SHA-1/SHA-256 fingerprints, and the Web OAuth client.',
+        );
+      }
+
       throw FirebaseAuthException(
         code: 'google-sign-in-failed',
         message: e.description ?? 'Unable to sign in with Google.',
       );
     }
-    final GoogleSignInAuthentication googleAuth = googleUser.authentication;
-
-    final idToken = googleAuth.idToken;
-    if (idToken == null || idToken.isEmpty) {
-      throw FirebaseAuthException(
-        code: 'missing-google-id-token',
-        message: 'Google sign-in did not return an ID token.',
-      );
-    }
-
-    final credential = GoogleAuthProvider.credential(idToken: idToken);
-    return _auth.signInWithCredential(credential);
   }
 
   Future<void> ensureUserProfile(User user) async {

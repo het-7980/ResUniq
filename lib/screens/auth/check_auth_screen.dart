@@ -51,14 +51,25 @@ class CheckAuth extends StatelessWidget {
   /// signup screen never needs to create an admin account.
   Future<UserProfile?> _loadProfile(User user) async {
     final db = FirebaseFirestore.instance;
+    final profileRef = db.collection('users').doc(user.uid);
 
-    final snapshot = await db.collection('users').doc(user.uid).get();
+    // FirebaseAuth can emit authStateChanges() immediately after the Google
+    // credential is accepted, while the Google sign-in service is still
+    // creating the Firestore profile. Retry briefly so the auth gate does not
+    // show "Profile not found" during that small timing window.
+    for (var attempt = 0; attempt < 8; attempt++) {
+      final snapshot = await profileRef.get();
 
-    if (!snapshot.exists || snapshot.data() == null) {
-      return null;
+      if (snapshot.exists && snapshot.data() != null) {
+        return UserProfile.fromMap(user.uid, snapshot.data()!);
+      }
+
+      if (attempt < 7) {
+        await Future<void>.delayed(const Duration(milliseconds: 300));
+      }
     }
 
-    return UserProfile.fromMap(user.uid, snapshot.data()!);
+    return null;
   }
 
   @override

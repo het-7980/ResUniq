@@ -14,6 +14,14 @@
       },
       "oauth_client": [
         {
+          "client_id": "1070058196039-805auqurnek9bfsq0p58hgdg7hqikg0e.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.example.resume_claude_with_backend",
+            "certificate_hash": "deb3f6bcc8311aaf50767f12734e0e10ee0769cd"
+          }
+        },
+        {
           "client_id": "1070058196039-gn8no3pe17bi3gqigmsd7faa2dt48ond.apps.googleusercontent.com",
           "client_type": 1,
           "android_info": {
