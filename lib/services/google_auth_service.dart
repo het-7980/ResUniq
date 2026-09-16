@@ -72,10 +72,12 @@ class GoogleAuthService {
 
       final googleUser = await _googleSignIn.authenticate().timeout(
         const Duration(seconds: 60),
-        onTimeout: () => throw FirebaseAuthException(
-          code: 'google-sign-in-timeout',
-          message: 'Google sign-in timed out. Please try again.',
-        ),
+        onTimeout:
+            () =>
+                throw FirebaseAuthException(
+                  code: 'google-sign-in-timeout',
+                  message: 'Google sign-in timed out. Please try again.',
+                ),
       );
 
       final googleAuth = googleUser.authentication;
@@ -94,7 +96,7 @@ class GoogleAuthService {
 
       try {
         return await _auth.signInWithCredential(credential);
-      } on FirebaseAuthException catch (e) {
+      } on FirebaseAuthException catch (_) {
         // Keep Firebase's original error code/message so the UI can show
         // something useful instead of hiding the real authentication error.
         rethrow;
@@ -126,8 +128,9 @@ class GoogleAuthService {
 
   Future<void> ensureUserProfile(User user) async {
     final userRef = _firestore.collection('users').doc(user.uid);
-    final personalRef =
-        _firestore.collection('users_personal_details').doc(user.uid);
+    final personalRef = _firestore
+        .collection('users_personal_details')
+        .doc(user.uid);
 
     final snapshot = await userRef.get();
     final displayName = (user.displayName ?? '').trim();
@@ -188,10 +191,12 @@ class GoogleAuthService {
   Future<UserCredential> signInAndCreateProfile() async {
     final credential = await signIn().timeout(
       const Duration(seconds: 90),
-      onTimeout: () => throw FirebaseAuthException(
-        code: 'google-sign-in-timeout',
-        message: 'Google sign-in timed out. Please try again.',
-      ),
+      onTimeout:
+          () =>
+              throw FirebaseAuthException(
+                code: 'google-sign-in-timeout',
+                message: 'Google sign-in timed out. Please try again.',
+              ),
     );
     final user = credential.user;
 
