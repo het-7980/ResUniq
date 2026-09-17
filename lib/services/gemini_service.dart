@@ -35,7 +35,7 @@ class GeminiService {
   GeminiService({http.Client? client}) : _client = client ?? http.Client();
 
   static const String _apiKey = String.fromEnvironment('GEMINI_API_KEY');
-  static const String _model = 'gemini-2.5-flash';
+  static const String _model = 'gemini-3.6-flash';
   static const String _endpoint =
       'https://generativelanguage.googleapis.com/v1beta/models/$_model:generateContent';
 
@@ -129,6 +129,8 @@ Rules: preserve the dominant colors; use six-digit hex values; detect left/right
     return Map<String, dynamic>.from(decoded);
   }
 
+  static const int _maxRetries = 3;
+
   Future<String> _generateText(List<Map<String, dynamic>> parts) async {
     if (!isConfigured) {
       throw StateError(
@@ -136,36 +138,53 @@ Rules: preserve the dominant colors; use six-digit hex values; detect left/right
       );
     }
 
-    final response = await _client.post(
-      Uri.parse(_endpoint),
-      headers: {'Content-Type': 'application/json', 'x-goog-api-key': _apiKey},
-      body: jsonEncode({
-        'contents': [
-          {'role': 'user', 'parts': parts},
-        ],
-      }),
-    );
+    for (var attempt = 0; ; attempt++) {
+      final response = await _client.post(
+        Uri.parse(_endpoint),
+        headers: {
+          'Content-Type': 'application/json',
+          'x-goog-api-key': _apiKey,
+        },
+        body: jsonEncode({
+          'contents': [
+            {'role': 'user', 'parts': parts},
+          ],
+        }),
+      );
 
-    if (response.statusCode < 200 || response.statusCode >= 300) {
-      String detail = response.body;
-      try {
-        final body = jsonDecode(response.body);
-        final error = body is Map ? body['error'] : null;
-        if (error is Map && error['message'] != null) {
-          detail = error['message'].toString();
+      if (response.statusCode < 200 || response.statusCode >= 300) {
+        // The free-tier Gemini API occasionally returns 503 (overloaded) or
+        // 429 (rate limited) under high demand; these are transient, so
+        // retry a few times with a short backoff before giving up.
+        final isRetryable =
+            response.statusCode == 503 || response.statusCode == 429;
+        if (isRetryable && attempt < _maxRetries) {
+          await Future<void>.delayed(Duration(seconds: 1 << attempt));
+          continue;
         }
-      } catch (_) {
-        // Keep the raw response if it was not JSON.
-      }
-      throw Exception('AI service error (${response.statusCode}): $detail');
-    }
 
-    final body = jsonDecode(response.body);
-    final text = _extractResponseText(body);
-    if (text.trim().isEmpty) {
-      throw const FormatException('The AI service returned an empty response.');
+        String detail = response.body;
+        try {
+          final body = jsonDecode(response.body);
+          final error = body is Map ? body['error'] : null;
+          if (error is Map && error['message'] != null) {
+            detail = error['message'].toString();
+          }
+        } catch (_) {
+          // Keep the raw response if it was not JSON.
+        }
+        throw Exception('AI service error (${response.statusCode}): $detail');
+      }
+
+      final body = jsonDecode(response.body);
+      final text = _extractResponseText(body);
+      if (text.trim().isEmpty) {
+        throw const FormatException(
+          'The AI service returned an empty response.',
+        );
+      }
+      return text;
     }
-    return text;
   }
 
   String _extractResponseText(dynamic body) {
