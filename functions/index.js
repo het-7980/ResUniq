@@ -17,7 +17,7 @@ setGlobalOptions({
 
 const geminiApiKey = defineSecret('GEMINI_API_KEY');
 const db = getFirestore();
-const MODEL = 'gemini-3.5-flash';
+const MODEL = 'gemini-2.5-flash';
 const DAILY_LIMIT = 20;
 const MAX_IMAGE_BYTES = 6 * 1024 * 1024;
 
