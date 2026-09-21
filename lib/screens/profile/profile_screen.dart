@@ -435,6 +435,254 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
+  Future<void> _setPassword(BuildContext context) async {
+    final newPasswordController = TextEditingController();
+    final confirmPasswordController = TextEditingController();
+
+    String validationError = '';
+
+    final newPassword = await showDialog<String>(
+      context: context,
+      useRootNavigator: true,
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (dialogContext, setDialogState) {
+          void showValidationError(String message) {
+            setDialogState(() => validationError = message);
+          }
+
+          return AlertDialog(
+            title: const Text('Set Password'),
+            insetPadding: const EdgeInsets.symmetric(
+              horizontal: 24,
+              vertical: 24,
+            ),
+            content: SingleChildScrollView(
+              keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 430),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Align(
+                      alignment: Alignment.centerLeft,
+                      child: Text(
+                        'This account signs in with Google and has no '
+                        'password yet. Set one to also sign in with email '
+                        'and password.',
+                      ),
+                    ),
+                    const SizedBox(height: 14),
+                    TextField(
+                      controller: newPasswordController,
+                      obscureText: true,
+                      autofocus: true,
+                      textInputAction: TextInputAction.next,
+                      decoration: const InputDecoration(
+                        labelText: 'New password',
+                        prefixIcon: Icon(Icons.lock_reset_rounded),
+                      ),
+                    ),
+                    const SizedBox(height: 14),
+                    TextField(
+                      controller: confirmPasswordController,
+                      obscureText: true,
+                      textInputAction: TextInputAction.done,
+                      decoration: const InputDecoration(
+                        labelText: 'Confirm password',
+                        prefixIcon: Icon(Icons.verified_user_outlined),
+                      ),
+                    ),
+                    if (validationError.isNotEmpty) ...[
+                      const SizedBox(height: 12),
+                      Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 10,
+                        ),
+                        decoration: BoxDecoration(
+                          color: Theme.of(dialogContext)
+                              .colorScheme
+                              .errorContainer,
+                          borderRadius: BorderRadius.circular(10),
+                          border: Border.all(
+                            color: Theme.of(dialogContext)
+                                .colorScheme
+                                .error
+                                .withValues(alpha: 0.35),
+                          ),
+                        ),
+                        child: Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Icon(
+                              Icons.error_outline_rounded,
+                              size: 20,
+                              color: Theme.of(dialogContext)
+                                  .colorScheme
+                                  .onErrorContainer,
+                            ),
+                            const SizedBox(width: 9),
+                            Expanded(
+                              child: Text(
+                                validationError,
+                                style: TextStyle(
+                                  color: Theme.of(dialogContext)
+                                      .colorScheme
+                                      .onErrorContainer,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                    const SizedBox(height: 10),
+                    Align(
+                      alignment: Alignment.centerLeft,
+                      child: Text(
+                        'Use at least 6 characters.',
+                        style: Theme.of(dialogContext).textTheme.bodySmall,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(dialogContext),
+                child: const Text('Cancel'),
+              ),
+              FilledButton(
+                onPressed: () {
+                  final next = newPasswordController.text;
+                  final confirm = confirmPasswordController.text;
+
+                  if (next.isEmpty || confirm.isEmpty) {
+                    showValidationError('Please fill in both fields.');
+                    return;
+                  }
+
+                  if (next.length < 6) {
+                    showValidationError(
+                      'Password must be at least 6 characters.',
+                    );
+                    return;
+                  }
+
+                  if (next != confirm) {
+                    showValidationError('Passwords do not match.');
+                    return;
+                  }
+
+                  Navigator.pop(dialogContext, next);
+                },
+                child: const Text('Set Password'),
+              ),
+            ],
+          );
+        },
+      ),
+    );
+    newPasswordController.dispose();
+    confirmPasswordController.dispose();
+
+    if (newPassword == null || !context.mounted) return;
+
+    final progress = ValueNotifier<String>('Setting password...');
+
+    showDialog<void>(
+      context: context,
+      useRootNavigator: true,
+      barrierDismissible: false,
+      builder: (_) => PopScope(
+        canPop: false,
+        child: AlertDialog(
+          content: ValueListenableBuilder<String>(
+            valueListenable: progress,
+            builder: (_, message, __) => Row(
+              children: [
+                const SizedBox(
+                  width: 24,
+                  height: 24,
+                  child: CircularProgressIndicator(strokeWidth: 2.5),
+                ),
+                const SizedBox(width: 18),
+                Expanded(child: Text(message)),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+
+    try {
+      await PasswordService().setInitialPassword(newPassword: newPassword);
+
+      if (context.mounted) {
+        Navigator.of(context, rootNavigator: true).pop();
+      }
+      progress.dispose();
+
+      if (!context.mounted) return;
+
+      // providerData now includes 'password', so rebuild to switch this
+      // card over to the normal Change Password flow.
+      setState(() {});
+
+      ScaffoldMessenger.of(context).hideCurrentSnackBar();
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Password set successfully.')),
+      );
+    } on FirebaseAuthException catch (e) {
+      if (context.mounted) {
+        Navigator.of(context, rootNavigator: true).pop();
+      }
+      progress.dispose();
+
+      if (!context.mounted) return;
+
+      final message = switch (e.code) {
+        'weak-password' =>
+          'The password is too weak. Use at least 6 characters.',
+        'credential-already-in-use' || 'email-already-in-use' =>
+          'This email is already linked to another sign-in method.',
+        'provider-already-linked' =>
+          'This account already has a password set.',
+        'requires-recent-login' =>
+          'Please sign in again and try setting your password.',
+        'network-request-failed' =>
+          'Network error. Check your internet connection.',
+        _ => e.message ?? 'Unable to set the password.',
+      };
+
+      await _showPasswordErrorDialog(context, message);
+    } on StateError catch (e) {
+      if (context.mounted) {
+        Navigator.of(context, rootNavigator: true).pop();
+      }
+      progress.dispose();
+
+      if (!context.mounted) return;
+
+      await _showPasswordErrorDialog(context, e.message);
+    } catch (e) {
+      if (context.mounted) {
+        Navigator.of(context, rootNavigator: true).pop();
+      }
+      progress.dispose();
+
+      if (!context.mounted) return;
+
+      await _showPasswordErrorDialog(
+        context,
+        'Unable to set the password: $e',
+      );
+    }
+  }
+
   Future<void> _changePassword(BuildContext context) async {
     final currentPasswordController = TextEditingController();
     final newPasswordController = TextEditingController();
@@ -921,11 +1169,33 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       ),
                       const SizedBox(height: 10),
 
-                      _ProfileActionCard(
-                        icon: Icons.lock_outline_rounded,
-                        title: 'Change Password',
-                        subtitle: 'Update your account password',
-                        onTap: () => _changePassword(context),
+                      Builder(
+                        builder: (context) {
+                          final providers = FirebaseAuth
+                                  .instance.currentUser?.providerData
+                                  .map((info) => info.providerId)
+                                  .toSet() ??
+                              {};
+                          final hasPassword =
+                              providers.contains('password');
+
+                          if (hasPassword) {
+                            return _ProfileActionCard(
+                              icon: Icons.lock_outline_rounded,
+                              title: 'Change Password',
+                              subtitle: 'Update your account password',
+                              onTap: () => _changePassword(context),
+                            );
+                          }
+
+                          return _ProfileActionCard(
+                            icon: Icons.lock_reset_rounded,
+                            title: 'Set Password',
+                            subtitle:
+                                'Add email/password sign-in to this Google account',
+                            onTap: () => _setPassword(context),
+                          );
+                        },
                       ),
                       const SizedBox(height: 10),
 

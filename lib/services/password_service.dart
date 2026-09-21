@@ -56,4 +56,27 @@ class PasswordService {
 
     await user.updatePassword(newPassword).timeout(_timeout);
   }
+
+  /// Adds an email/password sign-in method to an account that does not have
+  /// one yet (e.g. a Google-only account). There is no existing password to
+  /// verify, so this links a new password credential instead of updating one.
+  Future<void> setInitialPassword({required String newPassword}) async {
+    final user = _auth.currentUser;
+
+    if (user == null) {
+      throw StateError('No user is currently signed in.');
+    }
+
+    final email = user.email;
+    if (email == null || email.isEmpty) {
+      throw StateError('This account does not have a valid email address.');
+    }
+
+    final credential = EmailAuthProvider.credential(
+      email: email,
+      password: newPassword,
+    );
+
+    await user.linkWithCredential(credential).timeout(_timeout);
+  }
 }
